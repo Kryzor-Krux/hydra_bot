@@ -1,0 +1,4 @@
+# Cada linha define quem precisa revisar mudanças no caminho indicado.
+# Ex: * @seu-usuario-github
+*       @preencher-usuario
+/docs/  @preencher-usuario

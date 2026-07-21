@@ -1,0 +1,17 @@
+site_name: "<preencher: Nome do Projeto>"
+theme:
+  name: material
+  palette:
+    scheme: slate
+  features:
+    - navigation.tabs
+    - navigation.top
+    - content.code.copy
+
+nav:
+  - Início: index.md
+  - Arquitetura: architecture.md
+  - Setup: setup.md
+  - Segurança: security.md
+
+docs_dir: docs

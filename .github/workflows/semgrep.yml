@@ -1,0 +1,27 @@
+name: Semgrep
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config=p/security-audit \
+            --config=p/secrets \
+            --config=p/owasp-top-ten \
+            --sarif --output=semgrep.sarif .
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif

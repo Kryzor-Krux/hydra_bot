@@ -46,7 +46,7 @@ test.describe('Ciclos Module', () => {
 
 		// Check the computed balance updated (it might be the first balance-value)
 		const firstBalance = page.locator('.balance-value').first();
-		await expect(firstBalance).toHaveText(/160\.5/); // 160.5
+		await expect(firstBalance).toHaveText(/160\.50/); // 160.50
 
 		// 7. Test Withdrawal
 		const maeWithdrawalInput = page.locator('input[name="amount"]').nth(1);
@@ -67,6 +67,11 @@ test.describe('Ciclos Module', () => {
 		]);
 		await expect(firstBalance).toHaveText(/115\.25/);
 
+		// 8. reload page and verify persistence of financial entries
+		await page.reload();
+		await expect(firstBalance).toHaveText(/115\.25/);
+		await expect(page.locator('.chip').first()).toHaveText('+150.50');
+
 		// 8. verify copy behavior
 		await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
 		const copyBtn = page.locator('.copy-icon').first();
@@ -79,9 +84,9 @@ test.describe('Ciclos Module', () => {
 		const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
 		expect(clipboardText).toContain('nome:');
 		expect(clipboardText).toContain('numero: 11999999999');
-		expect(clipboardText).toContain('depositos: 160.5');
+		expect(clipboardText).toContain('depositos: 160.50');
 		expect(clipboardText).toContain('saques: 50.25');
-		expect(clipboardText).toContain('baus: 5');
+		expect(clipboardText).toContain('baus: 5.00');
 		expect(clipboardText).toContain('saldo: 115.25');
 
 		// 9. generate another cycle
@@ -113,5 +118,13 @@ test.describe('Ciclos Module', () => {
 		await expect(page).toHaveURL(/page=2/);
 		await expect(page.locator('.cycle-block')).toHaveCount(1);
 		await expect(page.locator('input[name="number"]').first()).toHaveValue('11999999999');
+
+		// 12. generate from old page should redirect to page 1
+		await generateBtn.click();
+		await page.waitForURL(
+			(url) => !url.searchParams.has('page') || url.searchParams.get('page') === '1'
+		);
+		// The newest cycle should be visible and not have the old number
+		await expect(page.locator('input[name="number"]').first()).toHaveValue('');
 	});
 });

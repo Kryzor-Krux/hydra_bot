@@ -1,3 +1,4 @@
+import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad, Actions } from './$types';
 import {
 	getAllCycles,
@@ -27,12 +28,12 @@ export const load: PageServerLoad = async ({ url }) => {
 export const actions: Actions = {
 	generate: async () => {
 		try {
-			const cycle = createCycle();
-			return { success: true, cycle };
+			createCycle();
 		} catch (error) {
 			console.error('Error generating cycle:', error);
 			return { success: false, error: 'Failed to generate cycle' };
 		}
+		throw redirect(303, '/ciclos');
 	},
 	update: async ({ request }) => {
 		const data = await request.formData();
@@ -75,9 +76,12 @@ export const actions: Actions = {
 		try {
 			addProfileEntry(profileId, type, amountStr);
 			return { success: true };
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error('Error adding entry:', error);
-			return { success: false, error: error.message || 'Falha ao adicionar registro.' };
+			return {
+				success: false,
+				error: error instanceof Error ? error.message : 'Falha ao adicionar registro.'
+			};
 		}
 	}
 };

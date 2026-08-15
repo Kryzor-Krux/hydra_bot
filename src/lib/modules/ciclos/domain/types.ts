@@ -2,7 +2,7 @@ export interface CycleProfileEntry {
 	id: string;
 	profile_id: string;
 	type: 'deposit' | 'withdrawal' | 'chest';
-	amount: number;
+	amount: string;
 	created_at?: string;
 }
 
@@ -16,10 +16,10 @@ export interface CycleProfile {
 	number: string;
 	withdrawal_password: string;
 	entries?: CycleProfileEntry[];
-	total_deposits?: number;
-	total_withdrawals?: number;
-	total_chests?: number;
-	computed_balance?: number;
+	total_deposits?: string;
+	total_withdrawals?: string;
+	total_chests?: string;
+	computed_balance?: string;
 	created_at?: string;
 	updated_at?: string;
 }

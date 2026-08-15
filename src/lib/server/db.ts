@@ -3,6 +3,7 @@ import { env } from '$env/dynamic/private';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'node:crypto';
+import { parseMoneyToCents } from '../modules/ciclos/domain/money';
 
 const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
 const dbPath = isTest ? ':memory:' : env.DATABASE_PATH || './data/ciclos.db';
@@ -60,24 +61,41 @@ export function initDb() {
 				id TEXT PRIMARY KEY,
 				profile_id TEXT NOT NULL REFERENCES cycle_profiles(id) ON DELETE CASCADE,
 				type TEXT NOT NULL CHECK(type IN ('deposit', 'withdrawal', 'chest')),
-				amount_cents INTEGER NOT NULL,
+				amount_cents INTEGER NOT NULL CHECK(amount_cents > 0 AND amount_cents <= 100000000),
 				created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 			);
+			CREATE INDEX IF NOT EXISTS idx_cycle_profile_entries_profile_id ON cycle_profile_entries(profile_id);
 		`);
 	} else {
-		// Migrate REAL amount to INTEGER amount_cents
+		// Ensure we are on the canonical schema if the table already existed
 		const pragma = db.prepare('PRAGMA table_info(cycle_profile_entries)').all() as any[];
 		const amountCol = pragma.find((c) => c.name === 'amount');
 		const amountCentsCol = pragma.find((c) => c.name === 'amount_cents');
 
 		if (amountCol && !amountCentsCol) {
 			db.transaction(() => {
+				// Migrate REAL amount to canonical integer amount_cents table
 				db.exec(`
-					ALTER TABLE cycle_profile_entries ADD COLUMN amount_cents INTEGER NOT NULL DEFAULT 0;
-					UPDATE cycle_profile_entries SET amount_cents = CAST(ROUND(amount * 100) AS INTEGER);
-					ALTER TABLE cycle_profile_entries DROP COLUMN amount;
+					CREATE TABLE cycle_profile_entries_new (
+						id TEXT PRIMARY KEY,
+						profile_id TEXT NOT NULL REFERENCES cycle_profiles(id) ON DELETE CASCADE,
+						type TEXT NOT NULL CHECK(type IN ('deposit', 'withdrawal', 'chest')),
+						amount_cents INTEGER NOT NULL CHECK(amount_cents > 0 AND amount_cents <= 100000000),
+						created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+					);
+					INSERT INTO cycle_profile_entries_new (id, profile_id, type, amount_cents, created_at)
+					SELECT id, profile_id, type, CAST(ROUND(amount * 100) AS INTEGER), created_at
+					FROM cycle_profile_entries;
+					DROP TABLE cycle_profile_entries;
+					ALTER TABLE cycle_profile_entries_new RENAME TO cycle_profile_entries;
+					CREATE INDEX IF NOT EXISTS idx_cycle_profile_entries_profile_id ON cycle_profile_entries(profile_id);
 				`);
 			})();
+		} else {
+			// Ensure index exists even if already migrated
+			db.exec(
+				'CREATE INDEX IF NOT EXISTS idx_cycle_profile_entries_profile_id ON cycle_profile_entries(profile_id);'
+			);
 		}
 	}
 
@@ -108,16 +126,24 @@ export function initDb() {
 		db.transaction(() => {
 			for (const p of oldProfiles) {
 				const createEntries = (str: string, type: string) => {
-					const nums = str
+					if (!str || str.trim() === '') return;
+					const tokens = str
 						.split(',')
-						.map((s) => parseFloat(s.trim()))
-						.filter((n) => !isNaN(n));
-					for (const n of nums) {
+						.map((s) => s.trim())
+						.filter((s) => s !== '');
+
+					for (const token of tokens) {
+						// This will throw if malformed, causing transaction to rollback
+						const cents = parseMoneyToCents(token);
+						if (cents <= 0 || cents > 100000000) {
+							throw new Error('Invalid legacy amount value');
+						}
+
 						insertEntry.run({
 							id: crypto.randomUUID(),
 							profile_id: p.id,
 							type: type,
-							amount_cents: Math.round(n * 100)
+							amount_cents: cents
 						});
 					}
 				};

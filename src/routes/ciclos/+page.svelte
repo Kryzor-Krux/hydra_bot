@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
-	import type { CycleProfile, CycleProfileEntry } from '$lib/modules/ciclos/domain/types';
+	import type { Cycle, CycleProfile, CycleProfileEntry } from '$lib/modules/ciclos/domain/types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let loading = $state(false);
@@ -18,10 +18,10 @@ senha: ${profile.generated_password}
 cpf: ${profile.cpf}
 numero: ${profile.number}
 senha saque: ${profile.withdrawal_password}
-depositos: ${profile.total_deposits ?? 0}
-saques: ${profile.total_withdrawals ?? 0}
-baus: ${profile.total_chests ?? 0}
-saldo: ${profile.computed_balance ?? 0}`;
+depositos: ${profile.total_deposits ?? '0.00'}
+saques: ${profile.total_withdrawals ?? '0.00'}
+baus: ${profile.total_chests ?? '0.00'}
+saldo: ${profile.computed_balance ?? '0.00'}`;
 
 		navigator.clipboard.writeText(text).then(() => {
 			copiedId = profile.id;
@@ -35,9 +35,9 @@ saldo: ${profile.computed_balance ?? 0}`;
 		});
 	}
 
-	function copyCycle(cycle: any) {
-		const mae = cycle.profiles.find((p: any) => p.role === 'mae');
-		const filha = cycle.profiles.find((p: any) => p.role === 'filha');
+	function copyCycle(cycle: Cycle) {
+		const mae = cycle.profiles.find((p: CycleProfile) => p.role === 'mae');
+		const filha = cycle.profiles.find((p: CycleProfile) => p.role === 'filha');
 
 		let text = '';
 		if (mae) {
@@ -47,10 +47,10 @@ senha: ${mae.generated_password}
 cpf: ${mae.cpf}
 numero: ${mae.number}
 senha saque: ${mae.withdrawal_password}
-depositos: ${mae.total_deposits ?? 0}
-saques: ${mae.total_withdrawals ?? 0}
-baus: ${mae.total_chests ?? 0}
-saldo: ${mae.computed_balance ?? 0}
+depositos: ${mae.total_deposits ?? '0.00'}
+saques: ${mae.total_withdrawals ?? '0.00'}
+baus: ${mae.total_chests ?? '0.00'}
+saldo: ${mae.computed_balance ?? '0.00'}
 
 `;
 		}
@@ -61,10 +61,10 @@ senha: ${filha.generated_password}
 cpf: ${filha.cpf}
 numero: ${filha.number}
 senha saque: ${filha.withdrawal_password}
-depositos: ${filha.total_deposits ?? 0}
-saques: ${filha.total_withdrawals ?? 0}
-baus: ${filha.total_chests ?? 0}
-saldo: ${filha.computed_balance ?? 0}`;
+depositos: ${filha.total_deposits ?? '0.00'}
+saques: ${filha.total_withdrawals ?? '0.00'}
+baus: ${filha.total_chests ?? '0.00'}
+saldo: ${filha.computed_balance ?? '0.00'}`;
 		}
 
 		navigator.clipboard.writeText(text).then(() => {
@@ -87,17 +87,20 @@ saldo: ${filha.computed_balance ?? 0}`;
 		};
 	}
 
-	function handleEntrySubmit() {
-		return async ({ update, cancel, formElement }: any) => {
-			if (formElement.dataset.submitting === 'true') {
-				cancel();
-				return;
+	const handleEntrySubmit: import('@sveltejs/kit').SubmitFunction = ({ cancel, formElement }) => {
+		if (formElement.dataset.submitting === 'true') {
+			cancel();
+			return;
+		}
+		formElement.dataset.submitting = 'true';
+		return async ({ update }) => {
+			try {
+				await update({ reset: true });
+			} finally {
+				formElement.dataset.submitting = 'false';
 			}
-			formElement.dataset.submitting = 'true';
-			await update({ reset: true });
-			formElement.dataset.submitting = 'false';
 		};
-	}
+	};
 
 	let updateTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};
 
@@ -163,7 +166,7 @@ saldo: ${filha.computed_balance ?? 0}`;
 						</div>
 
 						<div class="cards-container">
-							{#each ['mae', 'filha'] as role}
+							{#each ['mae', 'filha'] as role (role)}
 								{@const profile = cycle.profiles.find((p: CycleProfile) => p.role === role)}
 								{#if profile}
 									<div class="card">
@@ -223,7 +226,8 @@ saldo: ${filha.computed_balance ?? 0}`;
 											<div class="fin-block">
 												<div class="fin-header">
 													<span class="fin-title">Depósitos</span>
-													<span class="fin-total positive">+{profile.total_deposits ?? 0}</span>
+													<span class="fin-total positive">+{profile.total_deposits ?? '0.00'}</span
+													>
 												</div>
 												<div class="fin-entries">
 													{#each getEntries(profile, 'deposit') as entry (entry.id)}
@@ -258,7 +262,9 @@ saldo: ${filha.computed_balance ?? 0}`;
 											<div class="fin-block">
 												<div class="fin-header">
 													<span class="fin-title">Saques</span>
-													<span class="fin-total negative">-{profile.total_withdrawals ?? 0}</span>
+													<span class="fin-total negative"
+														>-{profile.total_withdrawals ?? '0.00'}</span
+													>
 												</div>
 												<div class="fin-entries">
 													{#each getEntries(profile, 'withdrawal') as entry (entry.id)}
@@ -293,7 +299,7 @@ saldo: ${filha.computed_balance ?? 0}`;
 											<div class="fin-block">
 												<div class="fin-header">
 													<span class="fin-title">Baús</span>
-													<span class="fin-total positive">+{profile.total_chests ?? 0}</span>
+													<span class="fin-total positive">+{profile.total_chests ?? '0.00'}</span>
 												</div>
 												<div class="fin-entries">
 													{#each getEntries(profile, 'chest') as entry (entry.id)}
@@ -328,11 +334,11 @@ saldo: ${filha.computed_balance ?? 0}`;
 										<div class="balance-section">
 											<span class="balance-label">SALDO:</span>
 											<span
-												class="balance-value {(profile.computed_balance ?? 0) < 0
-													? 'negative'
-													: 'positive'}"
+												class="balance-value {Number(profile.computed_balance || 0) >= 0
+													? 'positive'
+													: 'negative'}"
 											>
-												{profile.computed_balance ?? 0}
+												{profile.computed_balance ?? '0.00'}
 											</span>
 										</div>
 									</div>
@@ -346,10 +352,12 @@ saldo: ${filha.computed_balance ?? 0}`;
 			{#if data.hasMore || data.page > 1}
 				<div class="pagination">
 					{#if data.page > 1}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 						<a href="/ciclos?page={data.page - 1}" class="page-btn">Mais Recentes</a>
 					{/if}
 					<span class="page-info">Página {data.page}</span>
 					{#if data.hasMore}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 						<a href="/ciclos?page={data.page + 1}" class="page-btn">Carregar Mais Antigos</a>
 					{/if}
 				</div>

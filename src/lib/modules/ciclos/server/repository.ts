@@ -2,11 +2,12 @@ import { db } from '$lib/server/db';
 import crypto from 'node:crypto';
 import type { Cycle, CycleProfile, ProfileUpdatePayload, CycleProfileEntry } from '../domain/types';
 import { generateName, generatePassword, generateCPF } from '../domain/generator';
+import { parseMoneyToCents, formatCents } from '../domain/money';
 
 export function getAllCycles(limit = 50, offset = 0): Cycle[] {
 	const cycles = db
 		.prepare('SELECT * FROM cycles ORDER BY rowid DESC LIMIT ? OFFSET ?')
-		.all(limit, offset) as any[];
+		.all(limit, offset) as Cycle[];
 
 	if (cycles.length === 0) return [];
 
@@ -49,14 +50,24 @@ export function getAllCycles(limit = 50, offset = 0): Cycle[] {
 				id: e.id,
 				profile_id: e.profile_id,
 				type: e.type,
-				amount: (e as any).amount_cents / 100,
+				amount: formatCents((e as unknown as { amount_cents: number }).amount_cents),
 				created_at: e.created_at
 			}));
-		profile.total_deposits = Number(profile.total_deposits || 0) / 100;
-		profile.total_withdrawals = Number(profile.total_withdrawals || 0) / 100;
-		profile.total_chests = Number(profile.total_chests || 0) / 100;
-		profile.computed_balance =
-			profile.total_deposits - profile.total_withdrawals + profile.total_chests;
+
+		const depositCents = Number(
+			(profile as unknown as { total_deposits: number }).total_deposits || 0
+		);
+		const withdrawalCents = Number(
+			(profile as unknown as { total_withdrawals: number }).total_withdrawals || 0
+		);
+		const chestCents = Number((profile as unknown as { total_chests: number }).total_chests || 0);
+
+		profile.total_deposits = formatCents(depositCents);
+		profile.total_withdrawals = formatCents(withdrawalCents);
+		profile.total_chests = formatCents(chestCents);
+
+		const balanceCents = depositCents - withdrawalCents + chestCents;
+		profile.computed_balance = formatCents(balanceCents);
 	}
 
 	return cycles.map((cycle) => ({
@@ -119,7 +130,7 @@ export function createCycle(): Cycle {
 				error &&
 				typeof error === 'object' &&
 				'code' in error &&
-				(error as any).code === 'SQLITE_CONSTRAINT_UNIQUE'
+				(error as { code: string }).code === 'SQLITE_CONSTRAINT_UNIQUE'
 			) {
 				mae.cpf = generateCPF();
 				filha.cpf = generateCPF();
@@ -135,16 +146,16 @@ export function createCycle(): Cycle {
 	}
 
 	mae.entries = [];
-	mae.total_deposits = 0;
-	mae.total_withdrawals = 0;
-	mae.total_chests = 0;
-	mae.computed_balance = 0;
+	mae.total_deposits = '0.00';
+	mae.total_withdrawals = '0.00';
+	mae.total_chests = '0.00';
+	mae.computed_balance = '0.00';
 
 	filha.entries = [];
-	filha.total_deposits = 0;
-	filha.total_withdrawals = 0;
-	filha.total_chests = 0;
-	filha.computed_balance = 0;
+	filha.total_deposits = '0.00';
+	filha.total_withdrawals = '0.00';
+	filha.total_chests = '0.00';
+	filha.computed_balance = '0.00';
 
 	return {
 		id: cycleId,
@@ -181,17 +192,15 @@ export function addProfileEntry(profileId: string, type: string, amountStr: stri
 		throw new Error('Invalid entry type');
 	}
 
-	let amount = typeof amountStr === 'string' ? parseFloat(amountStr) : amountStr;
-
-	if (typeof amountStr === 'string' && !/^-?\d+(\.\d{1,2})?$/.test(amountStr)) {
-		throw new Error('Invalid amount format');
+	if (typeof amountStr !== 'string') {
+		amountStr = amountStr.toString();
 	}
 
-	if (isNaN(amount) || amount <= 0 || amount > 100000000) {
+	const amount_cents = parseMoneyToCents(amountStr);
+
+	if (amount_cents <= 0 || amount_cents > 100000000) {
 		throw new Error('Invalid amount value');
 	}
-
-	const amount_cents = Math.round(amount * 100);
 
 	const insert = db.prepare(`
 		INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents)

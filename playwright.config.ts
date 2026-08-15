@@ -3,6 +3,7 @@ import path from 'path';
 
 export default defineConfig({
 	globalSetup: './tests/e2e/global-setup.ts',
+	globalTeardown: './tests/e2e/global-teardown.ts',
 	webServer: {
 		command: 'npm run build && npm run preview',
 		port: 4173,

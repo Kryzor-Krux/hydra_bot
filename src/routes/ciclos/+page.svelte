@@ -227,7 +227,7 @@ saldo: ${saldo}`;
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
 	<link
-		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap"
+		href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap"
 		rel="stylesheet"
 	/>
 </svelte:head>
@@ -549,10 +549,10 @@ saldo: ${saldo}`;
 	}
 	:global(body) {
 		margin: 0;
-		background: #0a0a0b;
-		color: #d4d4d8;
+		background: #020202;
+		color: #e4e4e7;
 		font-family:
-			'Inter',
+			'Outfit',
 			system-ui,
 			-apple-system,
 			BlinkMacSystemFont,
@@ -581,6 +581,15 @@ saldo: ${saldo}`;
 		max-width: 1100px;
 		margin: 0 auto;
 		padding: 0 1.25rem 4rem;
+		position: relative;
+	}
+	.app::before {
+		content: '';
+		position: fixed;
+		top: -50%; left: -50%; width: 200%; height: 200%;
+		background: radial-gradient(circle at 50% 50%, rgba(220, 38, 38, 0.04) 0%, transparent 50%);
+		pointer-events: none;
+		z-index: -1;
 	}
 
 	/* ─── HEADER ────────────────────────────────────────── */
@@ -589,13 +598,13 @@ saldo: ${saldo}`;
 		align-items: center;
 		justify-content: space-between;
 		padding: 1.5rem 0 1.25rem;
-		border-bottom: 1px solid rgba(220, 38, 38, 0.18);
-		margin-bottom: 2rem;
+		border-bottom: 1px solid rgba(220, 38, 38, 0.12);
+		margin-bottom: 2.5rem;
 		position: sticky;
 		top: 0;
 		z-index: 10;
-		background: #0a0a0b;
-		backdrop-filter: blur(8px);
+		background: rgba(2, 2, 2, 0.7);
+		backdrop-filter: blur(16px);
 	}
 
 	.hdr-brand {
@@ -626,9 +635,9 @@ saldo: ${saldo}`;
 		display: inline-flex;
 		align-items: center;
 		gap: 0.5rem;
-		background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+		background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
 		color: #fff;
-		border: none;
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		padding: 0.6rem 1.4rem;
 		font-size: 0.78rem;
 		font-weight: 700;
@@ -636,9 +645,9 @@ saldo: ${saldo}`;
 		border-radius: 6px;
 		cursor: pointer;
 		transition:
-			transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
-			box-shadow 0.15s ease,
-			opacity 0.15s ease;
+			transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+			box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+			opacity 0.4s ease;
 		box-shadow:
 			0 4px 16px rgba(220, 38, 38, 0.3),
 			inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -646,14 +655,14 @@ saldo: ${saldo}`;
 	}
 
 	.btn-gen:hover:not(:disabled) {
-		transform: translateY(-2px);
+		transform: translateY(-2px) scale(1.02);
 		box-shadow:
-			0 8px 24px rgba(220, 38, 38, 0.4),
-			inset 0 1px 0 rgba(255, 255, 255, 0.12);
+			0 8px 32px rgba(220, 38, 38, 0.5),
+			inset 0 1px 0 rgba(255, 255, 255, 0.2);
 	}
 
 	.btn-gen:active:not(:disabled) {
-		transform: translateY(0);
+		transform: translateY(0) scale(0.98);
 	}
 
 	.btn-gen:disabled {
@@ -734,28 +743,29 @@ saldo: ${saldo}`;
 
 	/* ─── CYCLE CARD ────────────────────────────────────── */
 	.cycle-card {
-		background: linear-gradient(160deg, #111113 0%, #0e0e10 100%);
-		border: 1px solid #1e1e22;
+		background: rgba(12, 12, 14, 0.4);
+		backdrop-filter: blur(20px);
+		border: 1px solid rgba(255, 255, 255, 0.05);
 		border-radius: 14px;
-		padding: 1rem 1.1rem 1.1rem;
+		padding: 1.25rem;
 		box-shadow:
-			0 1px 0 rgba(255, 255, 255, 0.03) inset,
-			0 8px 32px rgba(0, 0, 0, 0.4);
+			0 1px 0 rgba(255, 255, 255, 0.02) inset,
+			0 8px 32px rgba(0, 0, 0, 0.6);
 		transition:
-			border-color 0.2s ease,
-			box-shadow 0.2s ease,
-			transform 0.2s ease;
-		animation: slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+			border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+			box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+			transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+		animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 		animation-fill-mode: both;
 	}
 
 	.cycle-card:hover {
-		border-color: rgba(220, 38, 38, 0.25);
+		border-color: rgba(220, 38, 38, 0.3);
 		box-shadow:
-			0 1px 0 rgba(255, 255, 255, 0.03) inset,
-			0 12px 40px rgba(0, 0, 0, 0.5),
-			0 0 0 1px rgba(220, 38, 38, 0.08);
-		transform: translateY(-1px);
+			0 1px 0 rgba(255, 255, 255, 0.05) inset,
+			0 12px 48px rgba(0, 0, 0, 0.8),
+			0 0 0 1px rgba(220, 38, 38, 0.1);
+		transform: translateY(-2px) scale(1.002);
 	}
 
 	@keyframes slide-up {
@@ -845,21 +855,21 @@ saldo: ${saldo}`;
 
 	/* ─── PROFILE CARD ──────────────────────────────────── */
 	.profile-card {
-		background: #0d0d0f;
-		border: 1px solid #1a1a1e;
+		background: rgba(0, 0, 0, 0.4);
+		border: 1px solid rgba(255, 255, 255, 0.04);
 		border-radius: 10px;
-		padding: 0.85rem;
+		padding: 1rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 1.25rem;
 		transition:
-			border-color 0.2s,
-			transform 0.2s;
+			border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+			transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
 	.profile-card:hover {
 		border-color: rgba(220, 38, 38, 0.2);
-		transform: translateY(-1px);
+		transform: translateY(-2px);
 	}
 
 	/* ─── PROFILE HEADER ────────────────────────────────── */
@@ -935,20 +945,20 @@ saldo: ${saldo}`;
 
 	.id-input {
 		width: 100%;
-		background: #111113;
-		border: 1px solid #27272a;
+		background: rgba(0, 0, 0, 0.5);
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: 4px;
-		color: #d4d4d8;
+		color: #e4e4e7;
 		font-size: 0.78rem;
 		padding: 0.22rem 0.45rem;
 		font-family: 'JetBrains Mono', monospace;
 		outline: none;
-		transition: border-color 0.15s;
+		transition: border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
 	.id-input:focus {
-		border-color: #dc2626;
-		box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+		border-color: rgba(220, 38, 38, 0.6);
+		box-shadow: 0 0 12px rgba(220, 38, 38, 0.15);
 	}
 
 	.id-input::placeholder {
@@ -957,35 +967,35 @@ saldo: ${saldo}`;
 
 	/* ─── FINANCIAL SUMMARY ─────────────────────────────── */
 	.fin-summary {
-		background: #0a0a0c;
-		border: 1px solid #1a1a1e;
-		border-radius: 7px;
-		padding: 0.55rem 0.7rem;
+		background: rgba(0, 0, 0, 0.6);
+		border: 1px solid rgba(255, 255, 255, 0.05);
+		border-radius: 8px;
+		padding: 0.75rem 0.9rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.18rem;
+		gap: 0.25rem;
 	}
 
 	.fin-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.18rem 0;
+		padding: 0.2rem 0;
 		border-radius: 4px;
-		transition: background 0.2s;
+		transition: text-shadow 0.4s ease;
 	}
 
 	.fin-row.flash {
-		animation: flash-row 0.55s ease;
+		animation: flash-row 1s cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
 	@keyframes flash-row {
 		0%,
 		100% {
-			background: transparent;
+			text-shadow: none;
 		}
-		40% {
-			background: rgba(220, 38, 38, 0.1);
+		20% {
+			text-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
 		}
 	}
 
@@ -1057,17 +1067,18 @@ saldo: ${saldo}`;
 
 	.entry-input {
 		width: 100%;
-		background: #0d0d0f;
-		border: 1px solid #27272a;
-		border-radius: 5px;
-		color: #d4d4d8;
-		font-size: 0.73rem;
-		padding: 0.32rem 0.45rem;
+		background: rgba(0, 0, 0, 0.7);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		color: #e4e4e7;
+		font-size: 0.78rem;
+		padding: 0.4rem 0.55rem;
 		font-family: 'JetBrains Mono', monospace;
 		outline: none;
 		transition:
-			border-color 0.15s,
-			box-shadow 0.15s;
+			border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+			box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+			background 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 		appearance: textfield;
 		-moz-appearance: textfield;
 	}
@@ -1079,19 +1090,21 @@ saldo: ${saldo}`;
 	}
 
 	.entry-input::placeholder {
-		color: #3f3f46;
-		font-size: 0.68rem;
+		color: #52525b;
+		font-size: 0.72rem;
 	}
 
 	.entry-input.dep:focus {
-		border-color: #f87171;
-		box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.1);
+		background: rgba(220, 38, 38, 0.05);
+		border-color: rgba(248, 113, 113, 0.6);
+		box-shadow: 0 0 16px rgba(220, 38, 38, 0.15);
 	}
 
 	.entry-input.saq:focus,
 	.entry-input.bau:focus {
-		border-color: #10b981;
-		box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+		background: rgba(16, 185, 129, 0.05);
+		border-color: rgba(16, 185, 129, 0.6);
+		box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
 	}
 
 	/* ─── LOAD MORE ─────────────────────────────────────── */

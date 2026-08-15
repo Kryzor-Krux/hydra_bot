@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { tick } from 'svelte';
 	import type { PageData, ActionData } from './$types';
 	import type { Cycle, CycleProfile } from '$lib/modules/ciclos/domain/types';
 
@@ -116,6 +117,8 @@ saldo: ${saldo}`;
 		formElement.dataset.submitting = 'true';
 		const profileId = formData.get('profileId') as string;
 		const type = formData.get('type') as string;
+		const inputId = `entry-${profileId}-${type}`;
+
 		return async ({ update }) => {
 			try {
 				await update({ reset: true });
@@ -126,6 +129,12 @@ saldo: ${saldo}`;
 					flashProfileId = '';
 					flashType = '';
 				}, 600);
+
+				await tick();
+				const inputEl = document.getElementById(inputId);
+				if (inputEl) {
+					inputEl.focus();
+				}
 			} finally {
 				formElement.dataset.submitting = 'false';
 			}
@@ -412,6 +421,7 @@ saldo: ${saldo}`;
 												<input type="hidden" name="profileId" value={profile.id} />
 												<input type="hidden" name="type" value="deposit" />
 												<input
+													id="entry-{profile.id}-deposit"
 													name="amount"
 													type="number"
 													step="0.01"
@@ -434,6 +444,7 @@ saldo: ${saldo}`;
 												<input type="hidden" name="profileId" value={profile.id} />
 												<input type="hidden" name="type" value="withdrawal" />
 												<input
+													id="entry-{profile.id}-withdrawal"
 													name="amount"
 													type="number"
 													step="0.01"
@@ -454,6 +465,7 @@ saldo: ${saldo}`;
 												<input type="hidden" name="profileId" value={profile.id} />
 												<input type="hidden" name="type" value="chest" />
 												<input
+													id="entry-{profile.id}-chest"
 													name="amount"
 													type="number"
 													step="0.01"

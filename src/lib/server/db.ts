@@ -50,6 +50,10 @@ export function initDb() {
 		);
 	`);
 
+	db.exec(
+		'CREATE UNIQUE INDEX IF NOT EXISTS idx_cycle_profiles_role_name ON cycle_profiles(role, name);'
+	);
+
 	const tableExists = db
 		.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cycle_profile_entries'")
 		.get() as { sql: string } | undefined;

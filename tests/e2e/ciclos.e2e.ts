@@ -170,4 +170,69 @@ test.describe('Ciclos Module', () => {
 		const depVal = page.locator('.fin-val.neg').first();
 		await expect(depVal).toHaveText(/-10\.00/);
 	});
+
+	test('Financial input keeps focus and allows continuous entry flow', async ({ page }) => {
+		await page.goto('/ciclos');
+		await generateCycle(page);
+
+		// Deposit continuous flow
+		const depInput = page.locator('.entry-input.dep').first();
+		await depInput.fill('50');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			depInput.press('Enter')
+		]);
+		await expect(depInput).toBeFocused();
+		await expect(depInput).toHaveValue('');
+
+		await depInput.fill('50');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			depInput.press('Enter')
+		]);
+		await expect(depInput).toBeFocused();
+		await expect(depInput).toHaveValue('');
+
+		await depInput.fill('50');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			depInput.press('Enter')
+		]);
+
+		const totalDep = page.locator('.fin-val.neg').first();
+		await expect(totalDep).toHaveText(/-150\.00/);
+
+		// Withdrawal continuous flow
+		const saqInput = page.locator('.entry-input.saq').first();
+		await saqInput.fill('50');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			saqInput.press('Enter')
+		]);
+		await expect(saqInput).toBeFocused();
+		await expect(saqInput).toHaveValue('');
+
+		await saqInput.fill('50');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			saqInput.press('Enter')
+		]);
+		const totalSaq = page.locator('.fin-val.pos').first();
+		await expect(totalSaq).toHaveText(/\+100\.00/);
+
+		// Chest flow
+		const bauInput = page.locator('.entry-input.bau').first();
+		await bauInput.fill('50');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			bauInput.press('Enter')
+		]);
+		await expect(bauInput).toBeFocused();
+		const totalBau = page.locator('.fin-val.pos').nth(1);
+		await expect(totalBau).toHaveText(/\+50\.00/);
+
+		// Verify final saldo: 100 + 50 - 150 = 0.00
+		const finalSaldo = page.locator('.fin-val.saldo').first();
+		await expect(finalSaldo).toHaveText(/0\.00/);
+	});
 });

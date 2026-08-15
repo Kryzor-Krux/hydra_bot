@@ -78,6 +78,20 @@ export function getAllCycles(limit = 50, offset = 0): Cycle[] {
 	}));
 }
 
+function generateUniqueName(role: string): string {
+	let name = generateName();
+	let attempts = 0;
+	while (attempts < 50) {
+		const existing = db
+			.prepare('SELECT 1 FROM cycle_profiles WHERE role = ? AND name = ?')
+			.get(role, name);
+		if (!existing) return name;
+		name = generateName();
+		attempts++;
+	}
+	throw new Error(`Failed to generate unique name for role ${role} after 50 attempts`);
+}
+
 export function createCycle(): Cycle {
 	const cycleId = crypto.randomUUID();
 
@@ -85,7 +99,7 @@ export function createCycle(): Cycle {
 		id: crypto.randomUUID(),
 		cycle_id: cycleId,
 		role: 'mae',
-		name: generateName(),
+		name: generateUniqueName('mae'),
 		generated_password: generatePassword(),
 		cpf: generateCPF(),
 		number: '',
@@ -96,7 +110,7 @@ export function createCycle(): Cycle {
 		id: crypto.randomUUID(),
 		cycle_id: cycleId,
 		role: 'filha',
-		name: generateName(),
+		name: generateUniqueName('filha'),
 		generated_password: generatePassword(),
 		cpf: generateCPF(),
 		number: '',
@@ -136,6 +150,8 @@ export function createCycle(): Cycle {
 			) {
 				mae.cpf = generateCPF();
 				filha.cpf = generateCPF();
+				mae.name = generateUniqueName('mae');
+				filha.name = generateUniqueName('filha');
 				retries++;
 			} else {
 				throw error;

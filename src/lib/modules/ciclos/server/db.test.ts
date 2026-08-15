@@ -71,6 +71,26 @@ describe('Ciclos DB Repository', () => {
 		expect(() => addProfileEntry(mae.id, 'deposit', '10.555')).toThrow('Invalid amount format');
 		expect(() => addProfileEntry(mae.id, 'invalid_type', '10')).toThrow('Invalid entry type');
 	});
+
+	it('should generate unique names and enforce DB constraint', () => {
+		const cycle1 = createCycle();
+		const cycle2 = createCycle();
+
+		expect(cycle1.profiles[0].name).not.toBe(cycle2.profiles[0].name);
+		expect(cycle1.profiles[1].name).not.toBe(cycle2.profiles[1].name);
+
+		const duplicateName = cycle1.profiles[0].name;
+		const cycleId = crypto.randomUUID();
+		db.prepare('INSERT INTO cycles (id) VALUES (?)').run(cycleId);
+		expect(() => {
+			db.prepare(
+				`
+				INSERT INTO cycle_profiles (id, cycle_id, role, name, generated_password, cpf)
+				VALUES (?, ?, 'mae', ?, 'pwd', '00000000000')
+			`
+			).run(crypto.randomUUID(), cycleId, duplicateName);
+		}).toThrow(/UNIQUE constraint failed/);
+	});
 });
 
 describe('Database Migration', () => {

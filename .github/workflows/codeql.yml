@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         # Ajuste para as linguagens reais do projeto
-        language: ['javascript-typescript', 'python']
+        language: ['javascript-typescript']
 
     steps:
       - uses: actions/checkout@v4

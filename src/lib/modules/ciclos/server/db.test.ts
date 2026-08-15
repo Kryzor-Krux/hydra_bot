@@ -56,7 +56,8 @@ describe('Ciclos DB Repository', () => {
 		expect(updatedMae.total_deposits).toBe('150.50');
 		expect(updatedMae.total_withdrawals).toBe('50.00');
 		expect(updatedMae.total_chests).toBe('10.99');
-		expect(updatedMae.computed_balance).toBe('111.49'); // 150.50 - 50 + 10.99
+		// Correct formula: saldo = saques + baus - depositos = 50 + 10.99 - 150.50 = -89.51
+		expect(updatedMae.computed_balance).toBe('-89.51');
 		expect(updatedMae.entries?.length).toBe(3);
 	});
 

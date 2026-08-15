@@ -5,23 +5,47 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let loading = $state(false);
-
 	let copiedId = $state('');
 	let ariaLiveMessage = $state('');
 
-	let cycles = $derived(data.cycles || []);
+	// Server-driven count accumulation for load-more
+	const BATCH = 5;
+	let allCycles = $derived(data.cycles || []);
+	let canLoadMore = $derived(data.hasMore ?? false);
+
+	// Flash state for when a value is added successfully
+	let flashProfileId = $state('');
+	let flashType = $state('');
+
+	function fmtSigned(
+		raw: string | undefined,
+		mode: 'deposit' | 'withdrawal' | 'chest' | 'balance'
+	): string {
+		const val = parseFloat(raw ?? '0');
+		const abs = Math.abs(val).toFixed(2);
+		if (mode === 'deposit') return `-${abs}`;
+		if (mode === 'withdrawal' || mode === 'chest') return `+${abs}`;
+		// balance: show real sign
+		if (val > 0) return `+${abs}`;
+		if (val < 0) return `-${Math.abs(val).toFixed(2)}`;
+		return `0.00`;
+	}
 
 	function copyProfile(profile: CycleProfile | undefined, label: string) {
 		if (!profile) return;
+		const deps = fmtSigned(profile.total_deposits, 'deposit');
+		const saqs = fmtSigned(profile.total_withdrawals, 'withdrawal');
+		const baus = fmtSigned(profile.total_chests, 'chest');
+		const saldo = fmtSigned(profile.computed_balance, 'balance');
 		const text = `nome: ${profile.name}
 senha: ${profile.generated_password}
 cpf: ${profile.cpf}
 numero: ${profile.number}
 senha saque: ${profile.withdrawal_password}
-depositos: ${profile.total_deposits ?? '0.00'}
-saques: ${profile.total_withdrawals ?? '0.00'}
-baus: ${profile.total_chests ?? '0.00'}
-saldo: ${profile.computed_balance ?? '0.00'}`;
+depositos: ${deps}
+saques: ${saqs}
+baus: ${baus}
+saldo: ${saldo}`;
 
 		navigator.clipboard.writeText(text).then(() => {
 			copiedId = profile.id;
@@ -39,33 +63,26 @@ saldo: ${profile.computed_balance ?? '0.00'}`;
 		const mae = cycle.profiles.find((p: CycleProfile) => p.role === 'mae');
 		const filha = cycle.profiles.find((p: CycleProfile) => p.role === 'filha');
 
-		let text = '';
-		if (mae) {
-			text += `--- MÃE ---
-nome: ${mae.name}
-senha: ${mae.generated_password}
-cpf: ${mae.cpf}
-numero: ${mae.number}
-senha saque: ${mae.withdrawal_password}
-depositos: ${mae.total_deposits ?? '0.00'}
-saques: ${mae.total_withdrawals ?? '0.00'}
-baus: ${mae.total_chests ?? '0.00'}
-saldo: ${mae.computed_balance ?? '0.00'}
+		const profileText = (p: CycleProfile, label: string) => {
+			const deps = fmtSigned(p.total_deposits, 'deposit');
+			const saqs = fmtSigned(p.total_withdrawals, 'withdrawal');
+			const baus = fmtSigned(p.total_chests, 'chest');
+			const saldo = fmtSigned(p.computed_balance, 'balance');
+			return `--- ${label} ---
+nome: ${p.name}
+senha: ${p.generated_password}
+cpf: ${p.cpf}
+numero: ${p.number}
+senha saque: ${p.withdrawal_password}
+depositos: ${deps}
+saques: ${saqs}
+baus: ${baus}
+saldo: ${saldo}`;
+		};
 
-`;
-		}
-		if (filha) {
-			text += `--- FILHA ---
-nome: ${filha.name}
-senha: ${filha.generated_password}
-cpf: ${filha.cpf}
-numero: ${filha.number}
-senha saque: ${filha.withdrawal_password}
-depositos: ${filha.total_deposits ?? '0.00'}
-saques: ${filha.total_withdrawals ?? '0.00'}
-baus: ${filha.total_chests ?? '0.00'}
-saldo: ${filha.computed_balance ?? '0.00'}`;
-		}
+		let text = '';
+		if (mae) text += profileText(mae, 'MÃE') + '\n\n';
+		if (filha) text += profileText(filha, 'FILHA');
 
 		navigator.clipboard.writeText(text).then(() => {
 			copiedId = cycle.id;
@@ -87,15 +104,28 @@ saldo: ${filha.computed_balance ?? '0.00'}`;
 		};
 	}
 
-	const handleEntrySubmit: import('@sveltejs/kit').SubmitFunction = ({ cancel, formElement }) => {
+	const handleEntrySubmit: import('@sveltejs/kit').SubmitFunction = ({
+		cancel,
+		formElement,
+		formData
+	}) => {
 		if (formElement.dataset.submitting === 'true') {
 			cancel();
 			return;
 		}
 		formElement.dataset.submitting = 'true';
+		const profileId = formData.get('profileId') as string;
+		const type = formData.get('type') as string;
 		return async ({ update }) => {
 			try {
 				await update({ reset: true });
+				// brief flash feedback
+				flashProfileId = profileId;
+				flashType = type;
+				setTimeout(() => {
+					flashProfileId = '';
+					flashType = '';
+				}, 600);
 			} finally {
 				formElement.dataset.submitting = 'false';
 			}
@@ -111,235 +141,329 @@ saldo: ${filha.computed_balance ?? '0.00'}`;
 		}, 500);
 	}
 
-	function getEntries(profile: CycleProfile, type: string) {
-		return profile.entries?.filter((e) => e.type === type) || [];
+	function loadMore() {
+		const nextCount = (data.count ?? BATCH) + BATCH;
+		// Navigate to the same page with an incremented count param
+		// SvelteKit will re-run the load function and fetch more cycles from the server
+		window.location.href = `/ciclos?count=${nextCount}`;
+	}
+
+	function balanceClass(raw: string | undefined): string {
+		const val = parseFloat(raw ?? '0');
+		if (val > 0) return 'pos';
+		if (val < 0) return 'neg';
+		return 'zero';
 	}
 </script>
 
 <svelte:head>
-	<title>HYDRA - CICLOS</title>
+	<title>HYDRA – CICLOS</title>
+	<meta name="description" content="HYDRA CICLOS – Geração e gerenciamento de ciclos de perfis." />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+	<link
+		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap"
+		rel="stylesheet"
+	/>
 </svelte:head>
 
 <div class="sr-only" aria-live="polite">{ariaLiveMessage}</div>
 
-<div class="app-container">
-	<header>
-		<div class="title-wrapper">
-			<h1>HYDRA</h1>
-			<div class="module-indicator">CICLOS V2</div>
+<div class="app">
+	<!-- ─── HEADER ─────────────────────────────────────────── -->
+	<header class="hdr">
+		<div class="hdr-brand">
+			<span class="hdr-logo">HYDRA</span>
+			<span class="hdr-mod">CICLOS</span>
 		</div>
+
 		<form method="POST" action="?/generate" use:enhance={handleFormSubmit}>
-			<button class="generate-btn" type="submit" disabled={loading}>
-				{loading ? 'GERANDO...' : 'GERAR DADOS'}
+			<button class="btn-gen" type="submit" disabled={loading} id="btn-generate">
+				{#if loading}
+					<span class="btn-spinner"></span>
+					GERANDO…
+				{:else}
+					<svg
+						width="14"
+						height="14"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.5"
+					>
+						<polyline points="23 4 23 10 17 10"></polyline>
+						<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+					</svg>
+					GERAR DADOS
+				{/if}
 			</button>
 		</form>
 	</header>
 
-	<main>
+	<!-- ─── MAIN ──────────────────────────────────────────── -->
+	<main class="main">
 		{#if form?.error}
-			<div class="error-banner">
-				{form.error}
-			</div>
+			<div class="err-banner" role="alert">{form.error}</div>
 		{/if}
 
-		{#if cycles.length === 0}
-			<div class="empty-state">
-				<p>Nenhum ciclo encontrado. Clique em "GERAR DADOS" para começar.</p>
+		{#if allCycles.length === 0}
+			<!-- EMPTY STATE -->
+			<div class="empty">
+				<div class="empty-icon" aria-hidden="true">
+					<svg
+						width="40"
+						height="40"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+					>
+						<circle cx="12" cy="12" r="10"></circle>
+						<line x1="12" y1="8" x2="12" y2="12"></line>
+						<line x1="12" y1="16" x2="12.01" y2="16"></line>
+					</svg>
+				</div>
+				<h2 class="empty-title">Nenhum ciclo gerado</h2>
+				<p class="empty-sub">Clique em <strong>GERAR DADOS</strong> para criar o primeiro ciclo.</p>
 			</div>
 		{:else}
-			<div class="cycles-stack">
-				{#each cycles as cycle (cycle.id)}
-					<div class="cycle-block">
-						<div class="cycle-header">
-							<h3>
-								Ciclo <span class="text-subtle"
-									>({new Date(cycle.created_at || '').toLocaleString()})</span
+			<div class="cycles">
+				{#each allCycles as cycle, i (cycle.id)}
+					<div class="cycle-card" style="animation-delay: {i * 60}ms">
+						<!-- Cycle header row -->
+						<div class="cycle-hdr">
+							<div class="cycle-meta">
+								<span class="cycle-label">CICLO</span>
+								<span class="cycle-ts"
+									>{new Date(cycle.created_at || '').toLocaleString('pt-BR', {
+										day: '2-digit',
+										month: '2-digit',
+										year: '2-digit',
+										hour: '2-digit',
+										minute: '2-digit'
+									})}</span
 								>
-							</h3>
+							</div>
 							<button
-								class="copy-btn subtle-btn"
+								class="btn-copy-cycle"
+								type="button"
 								onclick={() => copyCycle(cycle)}
-								aria-label="Copiar Ciclo Completo"
+								aria-label="Copiar ciclo completo"
+								id="btn-copy-cycle-{cycle.id}"
 							>
-								{copiedId === cycle.id ? 'Copiado!' : '📋 Copiar Ciclo'}
+								{#if copiedId === cycle.id}
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2.5"
+									>
+										<polyline points="20 6 9 17 4 12"></polyline>
+									</svg>
+									OK
+								{:else}
+									<svg
+										width="12"
+										height="12"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+									>
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+									Copiar Ciclo
+								{/if}
 							</button>
 						</div>
 
-						<div class="cards-container">
+						<!-- Profile pair -->
+						<div class="profiles">
 							{#each ['mae', 'filha'] as role (role)}
 								{@const profile = cycle.profiles.find((p: CycleProfile) => p.role === role)}
 								{#if profile}
-									<div class="card">
-										<div class="card-header">
-											<h2>{role === 'mae' ? 'MÃE' : 'FILHA'}</h2>
+									<div class="profile-card">
+										<!-- Profile header -->
+										<div class="profile-hdr">
+											<span class="role-badge">{role === 'mae' ? 'MÃE' : 'FILHA'}</span>
 											<button
+												class="btn-copy-profile"
 												type="button"
-												class="copy-icon"
-												aria-label={`Copiar perfil ${role}`}
-												onclick={() => copyProfile(profile, role.toUpperCase())}
+												onclick={() => copyProfile(profile, role === 'mae' ? 'MÃE' : 'FILHA')}
+												aria-label="Copiar perfil {role}"
+												id="btn-copy-profile-{profile.id}"
 											>
-												{copiedId === profile.id ? 'Copiado' : '📋'}
+												{#if copiedId === profile.id}
+													<svg
+														width="11"
+														height="11"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="2.5"
+													>
+														<polyline points="20 6 9 17 4 12"></polyline>
+													</svg>
+												{:else}
+													<svg
+														width="11"
+														height="11"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="2"
+													>
+														<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+														<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+														></path>
+													</svg>
+												{/if}
 											</button>
 										</div>
 
-										<div class="identity-section">
-											<div class="field readonly">
-												<span class="label">nome:</span>
-												<span class="value">{profile.name}</span>
-											</div>
-											<div class="field readonly">
-												<span class="label">senha:</span>
-												<span class="value font-mono">{profile.generated_password}</span>
-											</div>
-											<div class="field readonly">
-												<span class="label">cpf:</span>
-												<span class="value font-mono">{profile.cpf}</span>
-											</div>
+										<!-- Identity fields -->
+										<div class="id-grid">
+											<span class="id-label">nome</span>
+											<span class="id-val">{profile.name}</span>
 
+											<span class="id-label">senha</span>
+											<span class="id-val mono">{profile.generated_password}</span>
+
+											<span class="id-label">cpf</span>
+											<span class="id-val mono">{profile.cpf}</span>
+
+											<span class="id-label">numero</span>
 											<form
 												method="POST"
 												action="?/update"
 												use:enhance
 												oninput={(e) => debounceUpdate(e.currentTarget, profile.id)}
+												class="id-form"
 											>
 												<input type="hidden" name="profileId" value={profile.id} />
-												<div class="field editable">
-													<label for="{profile.id}-number" class="label">numero:</label>
-													<input
-														id="{profile.id}-number"
-														name="number"
-														type="text"
-														maxlength="255"
-														value={profile.number}
-													/>
-												</div>
+												<input
+													id="{profile.id}-number"
+													name="number"
+													type="text"
+													maxlength="255"
+													value={profile.number}
+													class="id-input"
+													placeholder="—"
+													aria-label="Número do perfil {role}"
+												/>
 											</form>
 
-											<div class="field readonly">
-												<span class="label">senha saque:</span>
-												<span class="value font-mono">{profile.withdrawal_password}</span>
-											</div>
+											<span class="id-label">s. saque</span>
+											<span class="id-val mono">{profile.withdrawal_password}</span>
 										</div>
 
-										<div class="financial-section">
-											<!-- Depositos -->
-											<div class="fin-block">
-												<div class="fin-header">
-													<span class="fin-title">Depósitos</span>
-													<span class="fin-total positive">+{profile.total_deposits ?? '0.00'}</span
-													>
-												</div>
-												<div class="fin-entries">
-													{#each getEntries(profile, 'deposit') as entry (entry.id)}
-														<span class="chip">+{entry.amount}</span>
-													{/each}
-												</div>
-												<form
-													method="POST"
-													action="?/addEntry"
-													use:enhance={handleEntrySubmit}
-													class="add-entry-form"
-												>
-													<input type="hidden" name="profileId" value={profile.id} />
-													<input type="hidden" name="type" value="deposit" />
-													<input
-														name="amount"
-														type="number"
-														step="0.01"
-														placeholder="Adicionar + (Enter)"
-														required
-													/>
-													<button
-														type="submit"
-														class="sr-only"
-														tabindex="-1"
-														aria-label="Adicionar depósito"
-													></button>
-												</form>
-											</div>
-
-											<!-- Saques -->
-											<div class="fin-block">
-												<div class="fin-header">
-													<span class="fin-title">Saques</span>
-													<span class="fin-total negative"
-														>-{profile.total_withdrawals ?? '0.00'}</span
-													>
-												</div>
-												<div class="fin-entries">
-													{#each getEntries(profile, 'withdrawal') as entry (entry.id)}
-														<span class="chip chip-negative">-{entry.amount}</span>
-													{/each}
-												</div>
-												<form
-													method="POST"
-													action="?/addEntry"
-													use:enhance={handleEntrySubmit}
-													class="add-entry-form"
-												>
-													<input type="hidden" name="profileId" value={profile.id} />
-													<input type="hidden" name="type" value="withdrawal" />
-													<input
-														name="amount"
-														type="number"
-														step="0.01"
-														placeholder="Remover - (Enter)"
-														required
-													/>
-													<button
-														type="submit"
-														class="sr-only"
-														tabindex="-1"
-														aria-label="Adicionar saque"
-													></button>
-												</form>
-											</div>
-
-											<!-- Baus -->
-											<div class="fin-block">
-												<div class="fin-header">
-													<span class="fin-title">Baús</span>
-													<span class="fin-total positive">+{profile.total_chests ?? '0.00'}</span>
-												</div>
-												<div class="fin-entries">
-													{#each getEntries(profile, 'chest') as entry (entry.id)}
-														<span class="chip">+{entry.amount}</span>
-													{/each}
-												</div>
-												<form
-													method="POST"
-													action="?/addEntry"
-													use:enhance={handleEntrySubmit}
-													class="add-entry-form"
-												>
-													<input type="hidden" name="profileId" value={profile.id} />
-													<input type="hidden" name="type" value="chest" />
-													<input
-														name="amount"
-														type="number"
-														step="0.01"
-														placeholder="Adicionar baú + (Enter)"
-														required
-													/>
-													<button
-														type="submit"
-														class="sr-only"
-														tabindex="-1"
-														aria-label="Adicionar baú"
-													></button>
-												</form>
-											</div>
-										</div>
-
-										<div class="balance-section">
-											<span class="balance-label">SALDO:</span>
-											<span
-												class="balance-value {Number(profile.computed_balance || 0) >= 0
-													? 'positive'
-													: 'negative'}"
+										<!-- Financial summary -->
+										<div class="fin-summary">
+											<div
+												class="fin-row fin-dep {flashProfileId === profile.id &&
+												flashType === 'deposit'
+													? 'flash'
+													: ''}"
 											>
-												{profile.computed_balance ?? '0.00'}
-											</span>
+												<span class="fin-lbl">Depósitos</span>
+												<span class="fin-val neg"
+													>{fmtSigned(profile.total_deposits, 'deposit')}</span
+												>
+											</div>
+											<div
+												class="fin-row fin-saq {flashProfileId === profile.id &&
+												flashType === 'withdrawal'
+													? 'flash'
+													: ''}"
+											>
+												<span class="fin-lbl">Saques</span>
+												<span class="fin-val pos"
+													>{fmtSigned(profile.total_withdrawals, 'withdrawal')}</span
+												>
+											</div>
+											<div
+												class="fin-row fin-bau {flashProfileId === profile.id &&
+												flashType === 'chest'
+													? 'flash'
+													: ''}"
+											>
+												<span class="fin-lbl">Baús</span>
+												<span class="fin-val pos">{fmtSigned(profile.total_chests, 'chest')}</span>
+											</div>
+											<div class="fin-row fin-saldo">
+												<span class="fin-lbl-saldo">SALDO</span>
+												<span class="fin-val saldo {balanceClass(profile.computed_balance)}"
+													>{fmtSigned(profile.computed_balance, 'balance')}</span
+												>
+											</div>
+										</div>
+
+										<!-- Entry inputs -->
+										<div class="entry-row">
+											<form
+												method="POST"
+												action="?/addEntry"
+												use:enhance={handleEntrySubmit}
+												class="entry-form"
+											>
+												<input type="hidden" name="profileId" value={profile.id} />
+												<input type="hidden" name="type" value="deposit" />
+												<input
+													name="amount"
+													type="number"
+													step="0.01"
+													min="0.01"
+													placeholder="Dep."
+													class="entry-input dep"
+													aria-label="Adicionar depósito"
+												/>
+												<button type="submit" class="sr-only" tabindex="-1"
+													>Adicionar depósito</button
+												>
+											</form>
+
+											<form
+												method="POST"
+												action="?/addEntry"
+												use:enhance={handleEntrySubmit}
+												class="entry-form"
+											>
+												<input type="hidden" name="profileId" value={profile.id} />
+												<input type="hidden" name="type" value="withdrawal" />
+												<input
+													name="amount"
+													type="number"
+													step="0.01"
+													min="0.01"
+													placeholder="Saque"
+													class="entry-input saq"
+													aria-label="Adicionar saque"
+												/>
+												<button type="submit" class="sr-only" tabindex="-1">Adicionar saque</button>
+											</form>
+
+											<form
+												method="POST"
+												action="?/addEntry"
+												use:enhance={handleEntrySubmit}
+												class="entry-form"
+											>
+												<input type="hidden" name="profileId" value={profile.id} />
+												<input type="hidden" name="type" value="chest" />
+												<input
+													name="amount"
+													type="number"
+													step="0.01"
+													min="0.01"
+													placeholder="Baú"
+													class="entry-input bau"
+													aria-label="Adicionar baú"
+												/>
+												<button type="submit" class="sr-only" tabindex="-1">Adicionar baú</button>
+											</form>
 										</div>
 									</div>
 								{/if}
@@ -349,17 +473,22 @@ saldo: ${filha.computed_balance ?? '0.00'}`;
 				{/each}
 			</div>
 
-			{#if data.hasMore || data.page > 1}
-				<div class="pagination">
-					{#if data.page > 1}
-						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-						<a href="/ciclos?page={data.page - 1}" class="page-btn">Mais Recentes</a>
-					{/if}
-					<span class="page-info">Página {data.page}</span>
-					{#if data.hasMore}
-						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-						<a href="/ciclos?page={data.page + 1}" class="page-btn">Carregar Mais Antigos</a>
-					{/if}
+			<!-- LOAD MORE -->
+			{#if canLoadMore}
+				<div class="load-more-wrapper">
+					<button class="btn-load-more" type="button" onclick={loadMore} id="btn-load-more">
+						<svg
+							width="14"
+							height="14"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<polyline points="6 9 12 15 18 9"></polyline>
+						</svg>
+						Carregar Mais
+					</button>
 				</div>
 			{/if}
 		{/if}
@@ -367,19 +496,26 @@ saldo: ${filha.computed_balance ?? '0.00'}`;
 </div>
 
 <style>
+	/* ─── RESET / GLOBALS ───────────────────────────────── */
+	:global(*) {
+		box-sizing: border-box;
+	}
 	:global(body) {
 		margin: 0;
+		background: #0a0a0b;
+		color: #d4d4d8;
 		font-family:
+			'Inter',
 			system-ui,
 			-apple-system,
 			BlinkMacSystemFont,
 			'Segoe UI',
-			Roboto,
 			sans-serif;
-		background-color: #080808;
-		color: #e0e0e0;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
 	}
 
+	/* ─── SR-ONLY ───────────────────────────────────────── */
 	.sr-only {
 		position: absolute;
 		width: 1px;
@@ -392,374 +528,557 @@ saldo: ${filha.computed_balance ?? '0.00'}`;
 		border-width: 0;
 	}
 
-	.app-container {
-		max-width: 1200px;
+	/* ─── APP SHELL ─────────────────────────────────────── */
+	.app {
+		min-height: 100vh;
+		max-width: 1100px;
 		margin: 0 auto;
-		padding: 2rem;
+		padding: 0 1.25rem 4rem;
 	}
 
-	header {
+	/* ─── HEADER ────────────────────────────────────────── */
+	.hdr {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		padding: 1.5rem 0 1.25rem;
+		border-bottom: 1px solid rgba(220, 38, 38, 0.18);
 		margin-bottom: 2rem;
-		border-bottom: 1px solid #2a0808;
-		padding-bottom: 1rem;
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		background: #0a0a0b;
+		backdrop-filter: blur(8px);
 	}
 
-	.title-wrapper {
+	.hdr-brand {
 		display: flex;
 		align-items: baseline;
-		gap: 1rem;
+		gap: 0.65rem;
 	}
 
-	h1 {
-		margin: 0;
-		color: #dc2626; /* Deep Red / Crimson */
-		font-size: 2rem;
-		font-weight: 800;
-		letter-spacing: 2px;
+	.hdr-logo {
+		font-size: 1.7rem;
+		font-weight: 900;
+		letter-spacing: 3px;
+		color: #dc2626;
+		line-height: 1;
+		text-shadow: 0 0 24px rgba(220, 38, 38, 0.35);
 	}
 
-	.module-indicator {
-		font-size: 1rem;
-		color: #888;
-		font-weight: 600;
-		letter-spacing: 1px;
+	.hdr-mod {
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 3px;
+		color: #52525b;
+		text-transform: uppercase;
 	}
 
-	.generate-btn {
-		background-color: #b91c1c; /* Blood Red */
+	/* ─── GENERATE BUTTON ───────────────────────────────── */
+	.btn-gen {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
 		color: #fff;
 		border: none;
-		padding: 0.75rem 2rem;
-		font-size: 1.1rem;
+		padding: 0.6rem 1.4rem;
+		font-size: 0.78rem;
 		font-weight: 700;
+		letter-spacing: 1.5px;
 		border-radius: 6px;
 		cursor: pointer;
 		transition:
-			transform 0.1s,
-			background-color 0.2s;
-		box-shadow: 0 4px 14px 0 rgba(185, 28, 28, 0.39);
+			transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+			box-shadow 0.15s ease,
+			opacity 0.15s ease;
+		box-shadow:
+			0 4px 16px rgba(220, 38, 38, 0.3),
+			inset 0 1px 0 rgba(255, 255, 255, 0.12);
+		font-family: inherit;
 	}
 
-	.generate-btn:hover:not(:disabled) {
-		background-color: #991b1b;
+	.btn-gen:hover:not(:disabled) {
 		transform: translateY(-2px);
+		box-shadow:
+			0 8px 24px rgba(220, 38, 38, 0.4),
+			inset 0 1px 0 rgba(255, 255, 255, 0.12);
 	}
 
-	.generate-btn:disabled {
-		opacity: 0.7;
+	.btn-gen:active:not(:disabled) {
+		transform: translateY(0);
+	}
+
+	.btn-gen:disabled {
+		opacity: 0.6;
 		cursor: not-allowed;
 	}
 
-	.error-banner {
-		background-color: #ef4444;
-		color: white;
-		padding: 1rem;
-		border-radius: 8px;
-		margin-bottom: 2rem;
-		text-align: center;
+	.btn-spinner {
+		display: inline-block;
+		width: 12px;
+		height: 12px;
+		border: 2px solid rgba(255, 255, 255, 0.35);
+		border-top-color: #fff;
+		border-radius: 50%;
+		animation: spin 0.7s linear infinite;
 	}
 
-	.empty-state {
-		text-align: center;
-		color: #666;
-		padding: 4rem;
-		background: #111;
-		border-radius: 12px;
-		border: 1px solid #222;
-	}
-
-	.cycles-stack {
-		display: flex;
-		flex-direction: column;
-		gap: 3rem;
-	}
-
-	.cycle-block {
-		background: #111;
-		border: 1px solid #222;
-		border-radius: 12px;
-		padding: 1.5rem;
-		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-	}
-
-	.cycle-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1.5rem;
-		border-bottom: 1px solid #222;
-		padding-bottom: 0.75rem;
-	}
-
-	.cycle-header h3 {
-		margin: 0;
-		color: #ccc;
-		font-size: 1.1rem;
-	}
-
-	.text-subtle {
-		color: #666;
-		font-size: 0.9rem;
-		font-weight: normal;
-	}
-
-	.subtle-btn {
-		background: transparent;
-		border: 1px solid #333;
-		color: #aaa;
-		padding: 0.4rem 0.8rem;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 0.85rem;
-		transition: all 0.2s;
-	}
-
-	.subtle-btn:hover {
-		color: #fff;
-		border-color: #b91c1c;
-		background: rgba(185, 28, 28, 0.1);
-	}
-
-	.cards-container {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 2rem;
-	}
-
-	@media (min-width: 768px) {
-		.cards-container {
-			grid-template-columns: 1fr 1fr;
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
 		}
 	}
 
-	.card {
-		display: flex;
-		flex-direction: column;
-		background-color: #161616;
-		border: 1px solid #2a2a2a;
+	/* ─── ERROR BANNER ──────────────────────────────────── */
+	.err-banner {
+		background: rgba(239, 68, 68, 0.12);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		color: #f87171;
+		padding: 0.75rem 1rem;
 		border-radius: 8px;
-		padding: 1.25rem;
-		transition: border-color 0.2s;
-	}
-
-	.card:hover {
-		border-color: #b91c1c;
-	}
-
-	.card-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1.25rem;
-	}
-
-	.card h2 {
-		margin: 0;
-		color: #dc2626;
-		font-size: 1.2rem;
-		letter-spacing: 1px;
-	}
-
-	.copy-icon {
-		background: #222;
-		border: 1px solid #333;
-		color: #aaa;
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		cursor: pointer;
+		margin-bottom: 1.5rem;
 		font-size: 0.875rem;
 	}
 
-	.copy-icon:hover {
-		color: #fff;
-		border-color: #dc2626;
-	}
-
-	.identity-section {
-		margin-bottom: 1.5rem;
-		padding-bottom: 1.5rem;
-		border-bottom: 1px solid #2a2a2a;
-	}
-
-	.field {
+	/* ─── EMPTY STATE ───────────────────────────────────── */
+	.empty {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		margin-bottom: 0.75rem;
+		gap: 0.75rem;
+		padding: 5rem 2rem;
+		text-align: center;
+		background: linear-gradient(160deg, #111113 0%, #0e0e10 100%);
+		border: 1px solid #1e1e22;
+		border-radius: 16px;
+		animation: fade-in 0.4s ease both;
 	}
 
-	.label {
-		width: 100px;
-		flex-shrink: 0;
-		color: #777;
-		font-size: 0.85rem;
-		text-transform: uppercase;
+	.empty-icon {
+		color: #3f3f46;
+		margin-bottom: 0.5rem;
 	}
 
-	.value {
-		color: #ddd;
-		font-size: 0.95rem;
+	.empty-title {
+		margin: 0;
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: #71717a;
 	}
 
-	.font-mono {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		color: #aaa;
+	.empty-sub {
+		margin: 0;
+		font-size: 0.875rem;
+		color: #52525b;
+		max-width: 300px;
 	}
 
-	.editable input {
-		flex-grow: 1;
-		background: #111;
-		border: 1px solid #333;
-		border-radius: 4px;
-		color: #fff;
-		font-size: 0.95rem;
-		padding: 0.4rem 0.5rem;
-		font-family: inherit;
-		outline: none;
-		transition: border-color 0.2s;
+	.empty-sub strong {
+		color: #dc2626;
 	}
 
-	.editable input:focus {
-		border-color: #dc2626;
-	}
-
-	.financial-section {
+	/* ─── CYCLES CONTAINER ──────────────────────────────── */
+	.cycles {
 		display: flex;
 		flex-direction: column;
 		gap: 1.25rem;
-		margin-bottom: 1.5rem;
 	}
 
-	.fin-block {
-		background: #111;
-		border: 1px solid #222;
-		border-radius: 6px;
-		padding: 0.75rem;
+	/* ─── CYCLE CARD ────────────────────────────────────── */
+	.cycle-card {
+		background: linear-gradient(160deg, #111113 0%, #0e0e10 100%);
+		border: 1px solid #1e1e22;
+		border-radius: 14px;
+		padding: 1rem 1.1rem 1.1rem;
+		box-shadow:
+			0 1px 0 rgba(255, 255, 255, 0.03) inset,
+			0 8px 32px rgba(0, 0, 0, 0.4);
+		transition:
+			border-color 0.2s ease,
+			box-shadow 0.2s ease,
+			transform 0.2s ease;
+		animation: slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+		animation-fill-mode: both;
 	}
 
-	.fin-header {
+	.cycle-card:hover {
+		border-color: rgba(220, 38, 38, 0.25);
+		box-shadow:
+			0 1px 0 rgba(255, 255, 255, 0.03) inset,
+			0 12px 40px rgba(0, 0, 0, 0.5),
+			0 0 0 1px rgba(220, 38, 38, 0.08);
+		transform: translateY(-1px);
+	}
+
+	@keyframes slide-up {
+		from {
+			opacity: 0;
+			transform: translateY(18px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@keyframes fade-in {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	/* ─── CYCLE HEADER ──────────────────────────────────── */
+	.cycle-hdr {
 		display: flex;
+		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 0.5rem;
-		font-size: 0.9rem;
+		margin-bottom: 0.9rem;
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid #1e1e22;
 	}
 
-	.fin-title {
-		color: #888;
+	.cycle-meta {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	.cycle-label {
+		font-size: 0.65rem;
+		font-weight: 800;
+		letter-spacing: 2px;
+		color: #dc2626;
+		text-shadow: 0 0 12px rgba(220, 38, 38, 0.25);
+	}
+
+	.cycle-ts {
+		font-size: 0.72rem;
+		color: #3f3f46;
+	}
+
+	.btn-copy-cycle {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		background: transparent;
+		border: 1px solid #27272a;
+		color: #52525b;
+		padding: 0.28rem 0.65rem;
+		border-radius: 5px;
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.5px;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		font-family: inherit;
+	}
+
+	.btn-copy-cycle:hover {
+		border-color: rgba(220, 38, 38, 0.4);
+		color: #f87171;
+		background: rgba(220, 38, 38, 0.06);
+	}
+
+	/* ─── PROFILES GRID ─────────────────────────────────── */
+	.profiles {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.9rem;
+	}
+
+	@media (max-width: 640px) {
+		.profiles {
+			grid-template-columns: 1fr;
+		}
+	}
+
+	/* ─── PROFILE CARD ──────────────────────────────────── */
+	.profile-card {
+		background: #0d0d0f;
+		border: 1px solid #1a1a1e;
+		border-radius: 10px;
+		padding: 0.85rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		transition:
+			border-color 0.2s,
+			transform 0.2s;
+	}
+
+	.profile-card:hover {
+		border-color: rgba(220, 38, 38, 0.2);
+		transform: translateY(-1px);
+	}
+
+	/* ─── PROFILE HEADER ────────────────────────────────── */
+	.profile-hdr {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.role-badge {
+		font-size: 0.7rem;
+		font-weight: 800;
+		letter-spacing: 2px;
+		color: #dc2626;
+		padding: 0.18rem 0.55rem;
+		background: rgba(220, 38, 38, 0.08);
+		border: 1px solid rgba(220, 38, 38, 0.2);
+		border-radius: 4px;
+	}
+
+	.btn-copy-profile {
+		background: transparent;
+		border: 1px solid #27272a;
+		color: #3f3f46;
+		padding: 0.22rem 0.45rem;
+		border-radius: 4px;
+		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		transition: all 0.15s ease;
+	}
+
+	.btn-copy-profile:hover {
+		border-color: rgba(220, 38, 38, 0.35);
+		color: #f87171;
+		background: rgba(220, 38, 38, 0.05);
+	}
+
+	/* ─── IDENTITY GRID ─────────────────────────────────── */
+	.id-grid {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		gap: 0.3rem 0.6rem;
+		align-items: center;
+	}
+
+	.id-label {
+		font-size: 0.65rem;
+		font-weight: 600;
+		color: #3f3f46;
 		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		white-space: nowrap;
+	}
+
+	.id-val {
 		font-size: 0.8rem;
+		color: #a1a1aa;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.mono {
+		font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-size: 0.75rem;
+		color: #71717a;
+	}
+
+	.id-form {
+		display: contents;
+	}
+
+	.id-input {
+		width: 100%;
+		background: #111113;
+		border: 1px solid #27272a;
+		border-radius: 4px;
+		color: #d4d4d8;
+		font-size: 0.78rem;
+		padding: 0.22rem 0.45rem;
+		font-family: 'JetBrains Mono', monospace;
+		outline: none;
+		transition: border-color 0.15s;
+	}
+
+	.id-input:focus {
+		border-color: #dc2626;
+		box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+	}
+
+	.id-input::placeholder {
+		color: #3f3f46;
+	}
+
+	/* ─── FINANCIAL SUMMARY ─────────────────────────────── */
+	.fin-summary {
+		background: #0a0a0c;
+		border: 1px solid #1a1a1e;
+		border-radius: 7px;
+		padding: 0.55rem 0.7rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.18rem;
+	}
+
+	.fin-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.18rem 0;
+		border-radius: 4px;
+		transition: background 0.2s;
+	}
+
+	.fin-row.flash {
+		animation: flash-row 0.55s ease;
+	}
+
+	@keyframes flash-row {
+		0%,
+		100% {
+			background: transparent;
+		}
+		40% {
+			background: rgba(220, 38, 38, 0.1);
+		}
+	}
+
+	.fin-saldo {
+		border-top: 1px solid #1a1a1e;
+		margin-top: 0.15rem;
+		padding-top: 0.3rem;
+	}
+
+	.fin-lbl {
+		font-size: 0.65rem;
+		font-weight: 600;
+		color: #3f3f46;
+		text-transform: uppercase;
 		letter-spacing: 0.5px;
 	}
 
-	.fin-total.positive {
-		color: #10b981;
-	}
-	.fin-total.negative {
-		color: #ef4444;
-	}
-
-	.fin-entries {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem;
-		margin-bottom: 0.75rem;
-		min-height: 24px;
-	}
-
-	.chip {
-		background: rgba(16, 185, 129, 0.1);
-		border: 1px solid rgba(16, 185, 129, 0.3);
-		color: #10b981;
-		font-size: 0.75rem;
-		padding: 0.1rem 0.4rem;
-		border-radius: 4px;
-		font-family: monospace;
-	}
-
-	.chip-negative {
-		background: rgba(239, 68, 68, 0.1);
-		border: 1px solid rgba(239, 68, 68, 0.3);
-		color: #ef4444;
-	}
-
-	.add-entry-form input {
-		width: 100%;
-		background: #161616;
-		border: 1px solid #333;
-		border-radius: 4px;
-		color: #fff;
-		padding: 0.5rem;
-		font-size: 0.9rem;
-		outline: none;
-		transition: border-color 0.2s;
-		box-sizing: border-box;
-	}
-
-	.add-entry-form input:focus {
-		border-color: #dc2626;
-	}
-
-	.balance-section {
-		margin-top: auto;
-		background: #1a0f0f;
-		border: 1px solid #3a1a1a;
-		border-radius: 6px;
-		padding: 1rem;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.balance-label {
-		color: #aaa;
-		font-weight: 700;
+	.fin-lbl-saldo {
+		font-size: 0.65rem;
+		font-weight: 800;
+		color: #52525b;
+		text-transform: uppercase;
 		letter-spacing: 1px;
 	}
 
-	.balance-value {
-		font-size: 1.5rem;
-		font-weight: 800;
-		font-family: monospace;
+	.fin-val {
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 0.78rem;
+		font-weight: 600;
 	}
 
-	.balance-value.positive {
+	.fin-val.pos {
 		color: #10b981;
 	}
-	.balance-value.negative {
-		color: #ef4444;
+	.fin-val.neg {
+		color: #f87171;
+	}
+	.fin-val.zero {
+		color: #52525b;
 	}
 
-	.pagination {
+	.fin-val.saldo {
+		font-size: 0.9rem;
+		font-weight: 800;
+	}
+
+	.fin-val.saldo.pos {
+		color: #10b981;
+		text-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+	}
+	.fin-val.saldo.neg {
+		color: #f87171;
+		text-shadow: 0 0 12px rgba(248, 113, 113, 0.2);
+	}
+	.fin-val.saldo.zero {
+		color: #52525b;
+	}
+
+	/* ─── ENTRY INPUTS ──────────────────────────────────── */
+	.entry-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
+		gap: 0.45rem;
+	}
+
+	.entry-form {
+		display: contents;
+	}
+
+	.entry-input {
+		width: 100%;
+		background: #0d0d0f;
+		border: 1px solid #27272a;
+		border-radius: 5px;
+		color: #d4d4d8;
+		font-size: 0.73rem;
+		padding: 0.32rem 0.45rem;
+		font-family: 'JetBrains Mono', monospace;
+		outline: none;
+		transition:
+			border-color 0.15s,
+			box-shadow 0.15s;
+		appearance: textfield;
+		-moz-appearance: textfield;
+	}
+
+	.entry-input::-webkit-outer-spin-button,
+	.entry-input::-webkit-inner-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+
+	.entry-input::placeholder {
+		color: #3f3f46;
+		font-size: 0.68rem;
+	}
+
+	.entry-input.dep:focus {
+		border-color: #f87171;
+		box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.1);
+	}
+
+	.entry-input.saq:focus,
+	.entry-input.bau:focus {
+		border-color: #10b981;
+		box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+	}
+
+	/* ─── LOAD MORE ─────────────────────────────────────── */
+	.load-more-wrapper {
 		display: flex;
 		justify-content: center;
+		margin-top: 1.5rem;
+	}
+
+	.btn-load-more {
+		display: inline-flex;
 		align-items: center;
-		gap: 1.5rem;
-		margin-top: 3rem;
-		padding-top: 2rem;
-		border-top: 1px solid #222;
+		gap: 0.4rem;
+		background: transparent;
+		border: 1px solid #27272a;
+		color: #71717a;
+		padding: 0.55rem 1.5rem;
+		border-radius: 8px;
+		font-size: 0.78rem;
+		font-weight: 600;
+		letter-spacing: 0.5px;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		font-family: inherit;
 	}
 
-	.page-btn {
-		background: #1a1a1a;
-		border: 1px solid #333;
-		color: #ccc;
-		padding: 0.6rem 1.2rem;
-		border-radius: 6px;
-		text-decoration: none;
-		font-size: 0.9rem;
-		transition: all 0.2s;
+	.btn-load-more:hover {
+		border-color: rgba(220, 38, 38, 0.35);
+		color: #f87171;
+		background: rgba(220, 38, 38, 0.05);
+		transform: translateY(1px);
 	}
 
-	.page-btn:hover {
-		background: #2a2a2a;
-		border-color: #555;
-		color: #fff;
-	}
-
-	.page-info {
-		color: #666;
-		font-size: 0.9rem;
+	.btn-load-more:active {
+		transform: translateY(2px);
 	}
 </style>

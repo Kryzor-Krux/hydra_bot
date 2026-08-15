@@ -66,7 +66,9 @@ export function getAllCycles(limit = 50, offset = 0): Cycle[] {
 		profile.total_withdrawals = formatCents(withdrawalCents);
 		profile.total_chests = formatCents(chestCents);
 
-		const balanceCents = depositCents - withdrawalCents + chestCents;
+		// Correct formula: saldo = saques + baus - depositos
+		// depositos are negative (liability), saques and baus are positive (gains)
+		const balanceCents = withdrawalCents + chestCents - depositCents;
 		profile.computed_balance = formatCents(balanceCents);
 	}
 

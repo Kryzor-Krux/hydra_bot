@@ -8,12 +8,13 @@ import {
 } from '$lib/modules/ciclos/server/repository';
 
 export const load: PageServerLoad = async ({ url }) => {
-	const parsedPage = parseInt(url.searchParams.get('page') || '1', 10);
-	const page = isNaN(parsedPage) ? 1 : Math.max(1, parsedPage);
-	const limit = 10; // Keep the interface simple with a smaller limit like 10
-	const offset = (page - 1) * limit;
-	const cycles = getAllCycles(limit + 1, offset);
-	const hasMore = cycles.length > limit;
+	const BATCH = 5;
+	const parsedCount = parseInt(url.searchParams.get('count') || String(BATCH), 10);
+	const count = isNaN(parsedCount) ? BATCH : Math.max(BATCH, parsedCount);
+
+	// Fetch one extra to detect whether there are more cycles
+	const cycles = getAllCycles(count + 1, 0);
+	const hasMore = cycles.length > count;
 
 	if (hasMore) {
 		cycles.pop();
@@ -21,7 +22,7 @@ export const load: PageServerLoad = async ({ url }) => {
 
 	return {
 		cycles,
-		page,
+		count,
 		hasMore
 	};
 };

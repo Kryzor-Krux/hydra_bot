@@ -1,130 +1,173 @@
 import { test, expect } from '@playwright/test';
 
+async function generateCycle(page: import('@playwright/test').Page) {
+	const generateBtn = page.getByRole('button', { name: 'GERAR DADOS' });
+	// Click and wait for page to settle (the action does a 303 redirect)
+	await Promise.all([page.waitForLoadState('networkidle'), generateBtn.click()]);
+}
+
 test.describe('Ciclos Module', () => {
-	test('Full generation and persistence flow', async ({ page }) => {
-		// 1. open /ciclos
+	test('Empty state is shown when there are no cycles', async ({ page }) => {
+		await page.goto('/ciclos');
+		// No cycles should be visible
+		await expect(page.locator('.cycle-card')).toHaveCount(0);
+		// Empty state should be visible
+		await expect(page.locator('.empty')).toBeVisible();
+		await expect(page.locator('.empty-title')).toBeVisible();
+	});
+
+	test('Full generation, financial entry, and persistence flow', async ({ page }) => {
 		await page.goto('/ciclos');
 
 		const generateBtn = page.getByRole('button', { name: 'GERAR DADOS' });
 		await expect(generateBtn).toBeVisible();
 
-		// 2. generate a cycle
-		await generateBtn.click();
+		// 1. Generate a cycle
+		await generateCycle(page);
 
-		// 3. verify MÃE and FILHA appear
-		await expect(page.locator('h2', { hasText: 'MÃE' }).first()).toBeVisible();
-		await expect(page.locator('h2', { hasText: 'FILHA' }).first()).toBeVisible();
+		// 2. Verify MÃE and FILHA appear
+		await expect(page.locator('.role-badge', { hasText: 'MÃE' }).first()).toBeVisible();
+		await expect(page.locator('.role-badge', { hasText: 'FILHA' }).first()).toBeVisible();
 
-		// 4. fill at least one manual field
+		// 3. No individual chip history should be shown
+		await expect(page.locator('.chip')).toHaveCount(0);
+
+		// 4. Fill the manual 'numero' field
 		const maeNumberInput = page.locator('input[name="number"]').first();
 		await maeNumberInput.fill('11999999999');
-
-		// Wait for the debounced update response
 		await page.waitForResponse(
 			(response) => response.url().includes('?/update') && response.status() === 200
 		);
 
-		// 5. verify persistence after reload
+		// 5. Verify persistence after reload
 		await page.reload();
-		await expect(page.locator('h2', { hasText: 'MÃE' }).first()).toBeVisible();
+		await expect(page.locator('.role-badge', { hasText: 'MÃE' }).first()).toBeVisible();
 		await expect(page.locator('input[name="number"]').first()).toHaveValue('11999999999');
 
-		// 6. Test financial entries (Deposit) with decimals
-		const maeDepositInput = page.locator('input[name="amount"]').nth(0);
-		await maeDepositInput.fill('150.50');
+		// 6. Add a deposit: depositos show as negative
+		const maeDepositInput = page.locator('.entry-input.dep').first();
+		await maeDepositInput.fill('150');
 		await Promise.all([
 			page.waitForResponse((r) => r.url().includes('?/addEntry')),
 			maeDepositInput.press('Enter')
 		]);
 
-		// test double submission guard (rapid enter)
-		await maeDepositInput.fill('10');
-		const responsePromise = page.waitForResponse((r) => r.url().includes('?/addEntry'));
-		await maeDepositInput.press('Enter');
-		await maeDepositInput.press('Enter'); // Rapid second press (should be ignored)
-		await responsePromise;
+		// After 150 deposit, saldo = 0 + 0 - 150 = -150
+		const firstDepTotal = page.locator('.fin-val.neg').first();
+		await expect(firstDepTotal).toHaveText(/-150\.00/);
 
-		// Check the computed balance updated (it might be the first balance-value)
-		const firstBalance = page.locator('.balance-value').first();
-		await expect(firstBalance).toHaveText(/160\.50/); // 160.50
+		// SALDO should be negative: -150.00
+		const firstSaldo = page.locator('.fin-val.saldo').first();
+		await expect(firstSaldo).toHaveText(/-150\.00/);
 
-		// 7. Test Withdrawal
-		const maeWithdrawalInput = page.locator('input[name="amount"]').nth(1);
-		await maeWithdrawalInput.fill('50.25');
+		// 7. Add a saque: saques show as positive
+		const maeSaqInput = page.locator('.entry-input.saq').first();
+		await maeSaqInput.fill('100');
 		await Promise.all([
 			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			maeWithdrawalInput.press('Enter')
+			maeSaqInput.press('Enter')
 		]);
 
-		await expect(firstBalance).toHaveText(/110\.25/); // 160.50 - 50.25 = 110.25
+		// saldo = 100 + 0 - 150 = -50
+		await expect(firstSaldo).toHaveText(/-50\.00/);
 
-		// 7b. Test chest
-		const maeChestInput = page.locator('input[name="amount"]').nth(2);
-		await maeChestInput.fill('5');
+		// 7b. Add a baú: baus show as positive
+		const maeBauInput = page.locator('.entry-input.bau').first();
+		await maeBauInput.fill('100');
 		await Promise.all([
 			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			maeChestInput.press('Enter')
+			maeBauInput.press('Enter')
 		]);
-		await expect(firstBalance).toHaveText(/115\.25/);
 
-		// 8. reload page and verify persistence of financial entries
+		// saldo = 100 + 100 - 150 = +50
+		await expect(firstSaldo).toHaveText(/\+50\.00/);
+
+		// 8. Reload and verify persistence (no chips, only totals)
 		await page.reload();
-		await expect(firstBalance).toHaveText(/115\.25/);
-		await expect(page.locator('.chip').first()).toHaveText('+150.50');
+		await expect(firstSaldo).toHaveText(/\+50\.00/);
+		await expect(page.locator('.chip')).toHaveCount(0);
 
-		// 8. verify copy behavior
+		// 9. Copy profile and verify corrected text output
 		await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-		const copyBtn = page.locator('.copy-icon').first();
+		const copyBtn = page.locator('.btn-copy-profile').first();
 		await copyBtn.click();
 
 		await expect(page.locator('.sr-only[aria-live="polite"]')).toHaveText(
-			'Perfil MAE copiado para a área de transferência.'
+			'Perfil MÃE copiado para a área de transferência.'
 		);
 
 		const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
 		expect(clipboardText).toContain('nome:');
 		expect(clipboardText).toContain('numero: 11999999999');
-		expect(clipboardText).toContain('depositos: 160.50');
-		expect(clipboardText).toContain('saques: 50.25');
-		expect(clipboardText).toContain('baus: 5.00');
-		expect(clipboardText).toContain('saldo: 115.25');
+		// Depositos are displayed as negative
+		expect(clipboardText).toContain('depositos: -150.00');
+		// Saques and baus are displayed as positive
+		expect(clipboardText).toContain('saques: +100.00');
+		expect(clipboardText).toContain('baus: +100.00');
+		// Saldo = saques + baus - depositos = 100 + 100 - 150 = +50
+		expect(clipboardText).toContain('saldo: +50.00');
+	});
 
-		// 9. generate another cycle
-		await generateBtn.click();
+	test('Only 5 cycles shown initially; load-more adds 5 more', async ({ page }) => {
+		await page.goto('/ciclos');
 
-		// 10. verify multiple cycles stack up
-		await expect(page.locator('.cycle-block')).toHaveCount(2);
-
-		// The newest cycle is on top, its number input should be empty
-		await expect(page.locator('input[name="number"]').first()).toHaveValue('');
-		// The old one is at the bottom
-		await expect(page.locator('input[name="number"]').nth(2)).toHaveValue('11999999999');
-
-		// 11. Pagination loop: generate 9 more cycles to push to page 2 (limit is 10)
-		for (let i = 0; i < 9; i++) {
-			await generateBtn.click();
-			// wait a bit for generation
-			await page.waitForTimeout(500);
+		// Generate enough cycles to ensure at least 6 exist (including any from prior tests)
+		// We generate 6 to guarantee there are more than 5 even if DB starts empty
+		for (let i = 0; i < 6; i++) {
+			await generateCycle(page);
 		}
 
-		await expect(page.locator('.cycle-block')).toHaveCount(10);
+		// Should show exactly 5 initially (server paginates by count=5)
+		await expect(page.locator('.cycle-card')).toHaveCount(5);
 
-		// check pagination link exists
-		const loadOlderBtn = page.locator('a.page-btn', { hasText: 'Carregar Mais Antigos' });
-		await expect(loadOlderBtn).toBeVisible();
-		await loadOlderBtn.click();
+		// Load more button should be visible since there are more than 5 cycles
+		const loadMoreBtn = page.locator('#btn-load-more');
+		await expect(loadMoreBtn).toBeVisible();
 
-		// should be on page 2 and see the older cycle
-		await expect(page).toHaveURL(/page=2/);
-		await expect(page.locator('.cycle-block')).toHaveCount(1);
-		await expect(page.locator('input[name="number"]').first()).toHaveValue('11999999999');
+		// Click load more – navigates to ?count=10
+		await Promise.all([page.waitForLoadState('networkidle'), loadMoreBtn.click()]);
 
-		// 12. generate from old page should redirect to page 1
-		await generateBtn.click();
-		await page.waitForURL(
-			(url) => !url.searchParams.has('page') || url.searchParams.get('page') === '1'
+		// Now 10 cycles should be visible (or all cycles if fewer than 10)
+		const countAfter = await page.locator('.cycle-card').count();
+		expect(countAfter).toBeGreaterThan(5);
+	});
+
+	test('Newest cycle appears first after generation', async ({ page }) => {
+		await page.goto('/ciclos');
+
+		// Generate first cycle and set a number
+		await generateCycle(page);
+		const firstInput = page.locator('input[name="number"]').first();
+		await firstInput.fill('11999999999');
+		await page.waitForResponse(
+			(response) => response.url().includes('?/update') && response.status() === 200
 		);
-		// The newest cycle should be visible and not have the old number
+
+		// Generate second cycle — it should appear on top (newest first)
+		await generateCycle(page);
+
+		// The first input (newest cycle) should be empty
 		await expect(page.locator('input[name="number"]').first()).toHaveValue('');
+		// The second input (older cycle) should have the saved value
+		await expect(page.locator('input[name="number"]').nth(2)).toHaveValue('11999999999');
+	});
+
+	test('Double submission guard on entry forms', async ({ page }) => {
+		await page.goto('/ciclos');
+		await generateCycle(page);
+
+		const depositInput = page.locator('.entry-input.dep').first();
+		await depositInput.fill('10');
+
+		// Fire enter twice rapidly; only one request should go through
+		const responsePromise = page.waitForResponse((r) => r.url().includes('?/addEntry'));
+		await depositInput.press('Enter');
+		await depositInput.press('Enter');
+		await responsePromise;
+
+		// Reload to verify only one entry was saved (total should be -10.00)
+		await page.reload();
+		const depVal = page.locator('.fin-val.neg').first();
+		await expect(depVal).toHaveText(/-10\.00/);
 	});
 });

@@ -85,7 +85,12 @@ export function createCycle(): Cycle {
 			transaction();
 			success = true;
 		} catch (error: unknown) {
-			if (error && typeof error === 'object' && 'code' in error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+			if (
+				error &&
+				typeof error === 'object' &&
+				'code' in error &&
+				error.code === 'SQLITE_CONSTRAINT_UNIQUE'
+			) {
 				// Regenerate CPFs
 				mae.cpf = generateCPF();
 				filha.cpf = generateCPF();

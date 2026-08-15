@@ -30,7 +30,9 @@ test.describe('Ciclos Module', () => {
 		await maeNumberInput.fill('11999999999');
 
 		// Wait for the debounced update response
-		await page.waitForResponse(response => response.url().includes('?/update') && response.status() === 200);
+		await page.waitForResponse(
+			(response) => response.url().includes('?/update') && response.status() === 200
+		);
 
 		// 6. verify persistence after reload
 		await page.reload();

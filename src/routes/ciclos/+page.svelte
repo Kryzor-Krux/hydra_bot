@@ -55,7 +55,10 @@ saldo final: ${profile.final_balance}`;
 		}, 500);
 	}
 
-	function copyAction(node: HTMLElement, params: { profile: CycleProfile | undefined, id: string, label: string }) {
+	function copyAction(
+		node: HTMLElement,
+		params: { profile: CycleProfile | undefined; id: string; label: string }
+	) {
 		let currentParams = params;
 
 		const handleClick = (e: MouseEvent) => {
@@ -67,7 +70,7 @@ saldo final: ${profile.final_balance}`;
 		node.addEventListener('click', handleClick);
 
 		return {
-			update(newParams: { profile: CycleProfile | undefined, id: string, label: string }) {
+			update(newParams: { profile: CycleProfile | undefined; id: string; label: string }) {
 				currentParams = newParams;
 			},
 			destroy() {

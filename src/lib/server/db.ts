@@ -47,62 +47,88 @@ export function initDb() {
 			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(cycle_id, role)
 		);
-		
-		CREATE TABLE IF NOT EXISTS cycle_profile_entries (
-			id TEXT PRIMARY KEY,
-			profile_id TEXT NOT NULL REFERENCES cycle_profiles(id) ON DELETE CASCADE,
-			type TEXT NOT NULL CHECK(type IN ('deposit', 'withdrawal', 'chest')),
-			amount REAL NOT NULL,
-			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
 	`);
+
+	// We check if cycle_profile_entries exists.
+	const tableExists = db
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cycle_profile_entries'")
+		.get();
+
+	if (!tableExists) {
+		db.exec(`
+			CREATE TABLE cycle_profile_entries (
+				id TEXT PRIMARY KEY,
+				profile_id TEXT NOT NULL REFERENCES cycle_profiles(id) ON DELETE CASCADE,
+				type TEXT NOT NULL CHECK(type IN ('deposit', 'withdrawal', 'chest')),
+				amount_cents INTEGER NOT NULL,
+				created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+		`);
+	} else {
+		// Migrate REAL amount to INTEGER amount_cents
+		const pragma = db.prepare('PRAGMA table_info(cycle_profile_entries)').all() as any[];
+		const amountCol = pragma.find((c) => c.name === 'amount');
+		const amountCentsCol = pragma.find((c) => c.name === 'amount_cents');
+
+		if (amountCol && !amountCentsCol) {
+			db.transaction(() => {
+				db.exec(`
+					ALTER TABLE cycle_profile_entries ADD COLUMN amount_cents INTEGER NOT NULL DEFAULT 0;
+					UPDATE cycle_profile_entries SET amount_cents = CAST(ROUND(amount * 100) AS INTEGER);
+					ALTER TABLE cycle_profile_entries DROP COLUMN amount;
+				`);
+			})();
+		}
+	}
 
 	// Migration: parse old text fields and migrate to entries
 	// Only run if we find rows with the old fields not empty
-	try {
-		const oldProfiles = db.prepare(`
-			SELECT id, deposits, withdrawals, chests 
-			FROM cycle_profiles 
-			WHERE deposits != '' OR withdrawals != '' OR chests != ''
-		`).all() as { id: string, deposits: string, withdrawals: string, chests: string }[];
+	const oldProfiles = db
+		.prepare(
+			`
+		SELECT id, deposits, withdrawals, chests 
+		FROM cycle_profiles 
+		WHERE deposits != '' OR withdrawals != '' OR chests != ''
+	`
+		)
+		.all() as { id: string; deposits: string; withdrawals: string; chests: string }[];
 
-		if (oldProfiles.length > 0) {
-			const insertEntry = db.prepare(`
-				INSERT INTO cycle_profile_entries (id, profile_id, type, amount) 
-				VALUES (@id, @profile_id, @type, @amount)
-			`);
-			
-			const clearOldFields = db.prepare(`
-				UPDATE cycle_profiles 
-				SET deposits = '', withdrawals = '', chests = '', balance = '', final_balance = ''
-				WHERE id = @id
-			`);
+	if (oldProfiles.length > 0) {
+		const insertEntry = db.prepare(`
+			INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents) 
+			VALUES (@id, @profile_id, @type, @amount_cents)
+		`);
 
-			db.transaction(() => {
-				for (const p of oldProfiles) {
-					// Parse basic numbers from string (assuming it was something like "100" or "50, 50")
-					const createEntries = (str: string, type: string) => {
-						const nums = str.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-						for (const n of nums) {
-							insertEntry.run({
-								id: crypto.randomUUID(),
-								profile_id: p.id,
-								type: type,
-								amount: n
-							});
-						}
-					};
+		const clearOldFields = db.prepare(`
+			UPDATE cycle_profiles 
+			SET deposits = '', withdrawals = '', chests = '', balance = '', final_balance = ''
+			WHERE id = @id
+		`);
 
-					createEntries(p.deposits, 'deposit');
-					createEntries(p.withdrawals, 'withdrawal');
-					createEntries(p.chests, 'chest');
+		db.transaction(() => {
+			for (const p of oldProfiles) {
+				const createEntries = (str: string, type: string) => {
+					const nums = str
+						.split(',')
+						.map((s) => parseFloat(s.trim()))
+						.filter((n) => !isNaN(n));
+					for (const n of nums) {
+						insertEntry.run({
+							id: crypto.randomUUID(),
+							profile_id: p.id,
+							type: type,
+							amount_cents: Math.round(n * 100)
+						});
+					}
+				};
 
-					clearOldFields.run({ id: p.id });
-				}
-			})();
-		}
-	} catch (e) {
-		console.error("Migration error:", e);
+				createEntries(p.deposits, 'deposit');
+				createEntries(p.withdrawals, 'withdrawal');
+				createEntries(p.chests, 'chest');
+
+				clearOldFields.run({ id: p.id });
+			}
+		})();
 	}
 }
 

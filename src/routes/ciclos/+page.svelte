@@ -38,7 +38,7 @@ saldo: ${profile.computed_balance ?? 0}`;
 	function copyCycle(cycle: any) {
 		const mae = cycle.profiles.find((p: any) => p.role === 'mae');
 		const filha = cycle.profiles.find((p: any) => p.role === 'filha');
-		
+
 		let text = '';
 		if (mae) {
 			text += `--- MÃE ---
@@ -88,8 +88,14 @@ saldo: ${filha.computed_balance ?? 0}`;
 	}
 
 	function handleEntrySubmit() {
-		return async ({ update }: { update: (opts: any) => Promise<void> }) => {
+		return async ({ update, cancel, formElement }: any) => {
+			if (formElement.dataset.submitting === 'true') {
+				cancel();
+				return;
+			}
+			formElement.dataset.submitting = 'true';
 			await update({ reset: true });
+			formElement.dataset.submitting = 'false';
 		};
 	}
 
@@ -101,9 +107,9 @@ saldo: ${filha.computed_balance ?? 0}`;
 			formElement.requestSubmit();
 		}, 500);
 	}
-	
+
 	function getEntries(profile: CycleProfile, type: string) {
-		return profile.entries?.filter(e => e.type === type) || [];
+		return profile.entries?.filter((e) => e.type === type) || [];
 	}
 </script>
 
@@ -142,8 +148,12 @@ saldo: ${filha.computed_balance ?? 0}`;
 				{#each cycles as cycle (cycle.id)}
 					<div class="cycle-block">
 						<div class="cycle-header">
-							<h3>Ciclo <span class="text-subtle">({new Date(cycle.created_at).toLocaleString()})</span></h3>
-							<button 
+							<h3>
+								Ciclo <span class="text-subtle"
+									>({new Date(cycle.created_at || '').toLocaleString()})</span
+								>
+							</h3>
+							<button
 								class="copy-btn subtle-btn"
 								onclick={() => copyCycle(cycle)}
 								aria-label="Copiar Ciclo Completo"
@@ -151,7 +161,7 @@ saldo: ${filha.computed_balance ?? 0}`;
 								{copiedId === cycle.id ? 'Copiado!' : '📋 Copiar Ciclo'}
 							</button>
 						</div>
-						
+
 						<div class="cards-container">
 							{#each ['mae', 'filha'] as role}
 								{@const profile = cycle.profiles.find((p: CycleProfile) => p.role === role)}
@@ -182,17 +192,23 @@ saldo: ${filha.computed_balance ?? 0}`;
 												<span class="label">cpf:</span>
 												<span class="value font-mono">{profile.cpf}</span>
 											</div>
-											
-											<form 
-												method="POST" 
-												action="?/update" 
-												use:enhance 
+
+											<form
+												method="POST"
+												action="?/update"
+												use:enhance
 												oninput={(e) => debounceUpdate(e.currentTarget, profile.id)}
 											>
 												<input type="hidden" name="profileId" value={profile.id} />
 												<div class="field editable">
 													<label for="{profile.id}-number" class="label">numero:</label>
-													<input id="{profile.id}-number" name="number" type="text" maxlength="255" value={profile.number} />
+													<input
+														id="{profile.id}-number"
+														name="number"
+														type="text"
+														maxlength="255"
+														value={profile.number}
+													/>
 												</div>
 											</form>
 
@@ -210,15 +226,31 @@ saldo: ${filha.computed_balance ?? 0}`;
 													<span class="fin-total positive">+{profile.total_deposits ?? 0}</span>
 												</div>
 												<div class="fin-entries">
-													{#each getEntries(profile, 'deposit') as entry}
+													{#each getEntries(profile, 'deposit') as entry (entry.id)}
 														<span class="chip">+{entry.amount}</span>
 													{/each}
 												</div>
-												<form method="POST" action="?/addEntry" use:enhance={handleEntrySubmit} class="add-entry-form">
+												<form
+													method="POST"
+													action="?/addEntry"
+													use:enhance={handleEntrySubmit}
+													class="add-entry-form"
+												>
 													<input type="hidden" name="profileId" value={profile.id} />
 													<input type="hidden" name="type" value="deposit" />
-													<input name="amount" type="number" step="0.01" placeholder="Adicionar + (Enter)" required />
-													<button type="submit" class="sr-only" tabindex="-1" aria-label="Adicionar depósito"></button>
+													<input
+														name="amount"
+														type="number"
+														step="0.01"
+														placeholder="Adicionar + (Enter)"
+														required
+													/>
+													<button
+														type="submit"
+														class="sr-only"
+														tabindex="-1"
+														aria-label="Adicionar depósito"
+													></button>
 												</form>
 											</div>
 
@@ -229,15 +261,31 @@ saldo: ${filha.computed_balance ?? 0}`;
 													<span class="fin-total negative">-{profile.total_withdrawals ?? 0}</span>
 												</div>
 												<div class="fin-entries">
-													{#each getEntries(profile, 'withdrawal') as entry}
+													{#each getEntries(profile, 'withdrawal') as entry (entry.id)}
 														<span class="chip chip-negative">-{entry.amount}</span>
 													{/each}
 												</div>
-												<form method="POST" action="?/addEntry" use:enhance={handleEntrySubmit} class="add-entry-form">
+												<form
+													method="POST"
+													action="?/addEntry"
+													use:enhance={handleEntrySubmit}
+													class="add-entry-form"
+												>
 													<input type="hidden" name="profileId" value={profile.id} />
 													<input type="hidden" name="type" value="withdrawal" />
-													<input name="amount" type="number" step="0.01" placeholder="Remover - (Enter)" required />
-													<button type="submit" class="sr-only" tabindex="-1" aria-label="Adicionar saque"></button>
+													<input
+														name="amount"
+														type="number"
+														step="0.01"
+														placeholder="Remover - (Enter)"
+														required
+													/>
+													<button
+														type="submit"
+														class="sr-only"
+														tabindex="-1"
+														aria-label="Adicionar saque"
+													></button>
 												</form>
 											</div>
 
@@ -248,22 +296,42 @@ saldo: ${filha.computed_balance ?? 0}`;
 													<span class="fin-total positive">+{profile.total_chests ?? 0}</span>
 												</div>
 												<div class="fin-entries">
-													{#each getEntries(profile, 'chest') as entry}
+													{#each getEntries(profile, 'chest') as entry (entry.id)}
 														<span class="chip">+{entry.amount}</span>
 													{/each}
 												</div>
-												<form method="POST" action="?/addEntry" use:enhance={handleEntrySubmit} class="add-entry-form">
+												<form
+													method="POST"
+													action="?/addEntry"
+													use:enhance={handleEntrySubmit}
+													class="add-entry-form"
+												>
 													<input type="hidden" name="profileId" value={profile.id} />
 													<input type="hidden" name="type" value="chest" />
-													<input name="amount" type="number" step="0.01" placeholder="Adicionar baú + (Enter)" required />
-													<button type="submit" class="sr-only" tabindex="-1" aria-label="Adicionar baú"></button>
+													<input
+														name="amount"
+														type="number"
+														step="0.01"
+														placeholder="Adicionar baú + (Enter)"
+														required
+													/>
+													<button
+														type="submit"
+														class="sr-only"
+														tabindex="-1"
+														aria-label="Adicionar baú"
+													></button>
 												</form>
 											</div>
 										</div>
 
 										<div class="balance-section">
 											<span class="balance-label">SALDO:</span>
-											<span class="balance-value { (profile.computed_balance ?? 0) < 0 ? 'negative' : 'positive' }">
+											<span
+												class="balance-value {(profile.computed_balance ?? 0) < 0
+													? 'negative'
+													: 'positive'}"
+											>
 												{profile.computed_balance ?? 0}
 											</span>
 										</div>
@@ -274,6 +342,18 @@ saldo: ${filha.computed_balance ?? 0}`;
 					</div>
 				{/each}
 			</div>
+
+			{#if data.hasMore || data.page > 1}
+				<div class="pagination">
+					{#if data.page > 1}
+						<a href="/ciclos?page={data.page - 1}" class="page-btn">Mais Recentes</a>
+					{/if}
+					<span class="page-info">Página {data.page}</span>
+					{#if data.hasMore}
+						<a href="/ciclos?page={data.page + 1}" class="page-btn">Carregar Mais Antigos</a>
+					{/if}
+				</div>
+			{/if}
 		{/if}
 	</main>
 </div>
@@ -565,8 +645,12 @@ saldo: ${filha.computed_balance ?? 0}`;
 		letter-spacing: 0.5px;
 	}
 
-	.fin-total.positive { color: #10b981; }
-	.fin-total.negative { color: #ef4444; }
+	.fin-total.positive {
+		color: #10b981;
+	}
+	.fin-total.negative {
+		color: #ef4444;
+	}
 
 	.fin-entries {
 		display: flex;
@@ -632,6 +716,42 @@ saldo: ${filha.computed_balance ?? 0}`;
 		font-family: monospace;
 	}
 
-	.balance-value.positive { color: #10b981; }
-	.balance-value.negative { color: #ef4444; }
+	.balance-value.positive {
+		color: #10b981;
+	}
+	.balance-value.negative {
+		color: #ef4444;
+	}
+
+	.pagination {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 1.5rem;
+		margin-top: 3rem;
+		padding-top: 2rem;
+		border-top: 1px solid #222;
+	}
+
+	.page-btn {
+		background: #1a1a1a;
+		border: 1px solid #333;
+		color: #ccc;
+		padding: 0.6rem 1.2rem;
+		border-radius: 6px;
+		text-decoration: none;
+		font-size: 0.9rem;
+		transition: all 0.2s;
+	}
+
+	.page-btn:hover {
+		background: #2a2a2a;
+		border-color: #555;
+		color: #fff;
+	}
+
+	.page-info {
+		color: #666;
+		font-size: 0.9rem;
+	}
 </style>

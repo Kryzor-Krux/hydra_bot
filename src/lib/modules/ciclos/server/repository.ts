@@ -3,43 +3,65 @@ import crypto from 'node:crypto';
 import type { Cycle, CycleProfile, ProfileUpdatePayload, CycleProfileEntry } from '../domain/types';
 import { generateName, generatePassword, generateCPF } from '../domain/generator';
 
-export function getAllCycles(limit = 50): Cycle[] {
-	const cycles = db.prepare('SELECT * FROM cycles ORDER BY rowid DESC LIMIT ?').all(limit) as any[];
+export function getAllCycles(limit = 50, offset = 0): Cycle[] {
+	const cycles = db
+		.prepare('SELECT * FROM cycles ORDER BY rowid DESC LIMIT ? OFFSET ?')
+		.all(limit, offset) as any[];
 
 	if (cycles.length === 0) return [];
 
-	const cycleIds = cycles.map(c => c.id);
-	
-	const profiles = db.prepare(`
+	const cycleIds = cycles.map((c) => c.id);
+
+	const profiles = db
+		.prepare(
+			`
 		SELECT p.*,
-			COALESCE(SUM(CASE WHEN e.type = 'deposit' THEN e.amount ELSE 0 END), 0) as total_deposits,
-			COALESCE(SUM(CASE WHEN e.type = 'withdrawal' THEN e.amount ELSE 0 END), 0) as total_withdrawals,
-			COALESCE(SUM(CASE WHEN e.type = 'chest' THEN e.amount ELSE 0 END), 0) as total_chests
+			COALESCE(SUM(CASE WHEN e.type = 'deposit' THEN e.amount_cents ELSE 0 END), 0) as total_deposits,
+			COALESCE(SUM(CASE WHEN e.type = 'withdrawal' THEN e.amount_cents ELSE 0 END), 0) as total_withdrawals,
+			COALESCE(SUM(CASE WHEN e.type = 'chest' THEN e.amount_cents ELSE 0 END), 0) as total_chests
 		FROM cycle_profiles p
 		LEFT JOIN cycle_profile_entries e ON p.id = e.profile_id
 		WHERE p.cycle_id IN (${cycleIds.map(() => '?').join(',')})
 		GROUP BY p.id
 		ORDER BY p.role DESC
-	`).all(...cycleIds) as CycleProfile[];
+	`
+		)
+		.all(...cycleIds) as CycleProfile[];
 
-	const profileIds = profiles.map(p => p.id);
+	const profileIds = profiles.map((p) => p.id);
 	let entries: CycleProfileEntry[] = [];
 	if (profileIds.length > 0) {
-		entries = db.prepare(`
+		entries = db
+			.prepare(
+				`
 			SELECT * FROM cycle_profile_entries
 			WHERE profile_id IN (${profileIds.map(() => '?').join(',')})
 			ORDER BY created_at ASC, rowid ASC
-		`).all(...profileIds) as CycleProfileEntry[];
+		`
+			)
+			.all(...profileIds) as CycleProfileEntry[];
 	}
 
 	for (const profile of profiles) {
-		profile.entries = entries.filter(e => e.profile_id === profile.id);
-		profile.computed_balance = (profile.total_deposits || 0) - (profile.total_withdrawals || 0) + (profile.total_chests || 0);
+		profile.entries = entries
+			.filter((e) => e.profile_id === profile.id)
+			.map((e) => ({
+				id: e.id,
+				profile_id: e.profile_id,
+				type: e.type,
+				amount: (e as any).amount_cents / 100,
+				created_at: e.created_at
+			}));
+		profile.total_deposits = Number(profile.total_deposits || 0) / 100;
+		profile.total_withdrawals = Number(profile.total_withdrawals || 0) / 100;
+		profile.total_chests = Number(profile.total_chests || 0) / 100;
+		profile.computed_balance =
+			profile.total_deposits - profile.total_withdrawals + profile.total_chests;
 	}
 
-	return cycles.map(cycle => ({
+	return cycles.map((cycle) => ({
 		...cycle,
-		profiles: profiles.filter(p => p.cycle_id === cycle.id)
+		profiles: profiles.filter((p) => p.cycle_id === cycle.id)
 	}));
 }
 
@@ -154,15 +176,31 @@ export function updateProfile(profileId: string, payload: Partial<ProfileUpdateP
 	stmt.run(values);
 }
 
-export function addProfileEntry(profileId: string, type: 'deposit' | 'withdrawal' | 'chest', amount: number): void {
+export function addProfileEntry(profileId: string, type: string, amountStr: string | number): void {
+	if (!['deposit', 'withdrawal', 'chest'].includes(type)) {
+		throw new Error('Invalid entry type');
+	}
+
+	let amount = typeof amountStr === 'string' ? parseFloat(amountStr) : amountStr;
+
+	if (typeof amountStr === 'string' && !/^-?\d+(\.\d{1,2})?$/.test(amountStr)) {
+		throw new Error('Invalid amount format');
+	}
+
+	if (isNaN(amount) || amount <= 0 || amount > 100000000) {
+		throw new Error('Invalid amount value');
+	}
+
+	const amount_cents = Math.round(amount * 100);
+
 	const insert = db.prepare(`
-		INSERT INTO cycle_profile_entries (id, profile_id, type, amount)
-		VALUES (@id, @profile_id, @type, @amount)
+		INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents)
+		VALUES (@id, @profile_id, @type, @amount_cents)
 	`);
 	insert.run({
 		id: crypto.randomUUID(),
 		profile_id: profileId,
 		type,
-		amount
+		amount_cents
 	});
 }

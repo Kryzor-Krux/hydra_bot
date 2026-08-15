@@ -1,10 +1,26 @@
 import type { PageServerLoad, Actions } from './$types';
-import { getAllCycles, createCycle, updateProfile, addProfileEntry } from '$lib/modules/ciclos/server/repository';
+import {
+	getAllCycles,
+	createCycle,
+	updateProfile,
+	addProfileEntry
+} from '$lib/modules/ciclos/server/repository';
 
-export const load: PageServerLoad = async () => {
-	const cycles = getAllCycles();
+export const load: PageServerLoad = async ({ url }) => {
+	const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+	const limit = 10; // Keep the interface simple with a smaller limit like 10
+	const offset = (page - 1) * limit;
+	const cycles = getAllCycles(limit + 1, offset);
+	const hasMore = cycles.length > limit;
+
+	if (hasMore) {
+		cycles.pop();
+	}
+
 	return {
-		cycles
+		cycles,
+		page,
+		hasMore
 	};
 };
 
@@ -49,24 +65,19 @@ export const actions: Actions = {
 	addEntry: async ({ request }) => {
 		const data = await request.formData();
 		const profileId = data.get('profileId') as string;
-		const type = data.get('type') as 'deposit' | 'withdrawal' | 'chest';
+		const type = data.get('type') as string;
 		const amountStr = data.get('amount') as string;
-		
+
 		if (!profileId || !type || !amountStr) {
 			return { success: false, error: 'Missing required fields' };
 		}
-		
-		const amount = parseFloat(amountStr);
-		if (isNaN(amount) || amount <= 0) {
-			return { success: false, error: 'Valor inválido' };
-		}
-		
+
 		try {
-			addProfileEntry(profileId, type, amount);
+			addProfileEntry(profileId, type, amountStr);
 			return { success: true };
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Error adding entry:', error);
-			return { success: false, error: 'Falha ao adicionar registro.' };
+			return { success: false, error: error.message || 'Falha ao adicionar registro.' };
 		}
 	}
 };

@@ -40,22 +40,33 @@ describe('Ciclos DB Repository', () => {
 		expect(updatedMae.name).toBe(mae.name);
 		expect(updatedMae.cpf).toBe(mae.cpf);
 	});
-	
+
 	it('should add financial entries and calculate computed_balance', () => {
 		const cycle = createCycle();
 		const mae = cycle.profiles[0];
 
-		addProfileEntry(mae.id, 'deposit', 150);
-		addProfileEntry(mae.id, 'withdrawal', 50);
-		addProfileEntry(mae.id, 'chest', 10);
+		addProfileEntry(mae.id, 'deposit', '150.50');
+		addProfileEntry(mae.id, 'withdrawal', '50');
+		addProfileEntry(mae.id, 'chest', '10.99');
 
 		let cycles = getAllCycles();
 		let updatedMae = cycles[0].profiles.find((p) => p.role === 'mae')!;
 
-		expect(updatedMae.total_deposits).toBe(150);
+		expect(updatedMae.total_deposits).toBe(150.5);
 		expect(updatedMae.total_withdrawals).toBe(50);
-		expect(updatedMae.total_chests).toBe(10);
-		expect(updatedMae.computed_balance).toBe(110); // 150 - 50 + 10
+		expect(updatedMae.total_chests).toBe(10.99);
+		expect(updatedMae.computed_balance).toBe(111.49); // 150.50 - 50 + 10.99
 		expect(updatedMae.entries?.length).toBe(3);
+	});
+
+	it('should reject invalid amounts', () => {
+		const cycle = createCycle();
+		const mae = cycle.profiles[0];
+
+		expect(() => addProfileEntry(mae.id, 'deposit', '-10')).toThrow('Invalid amount value');
+		expect(() => addProfileEntry(mae.id, 'deposit', '0')).toThrow('Invalid amount value');
+		expect(() => addProfileEntry(mae.id, 'deposit', 'abc')).toThrow('Invalid amount format');
+		expect(() => addProfileEntry(mae.id, 'deposit', '10.555')).toThrow('Invalid amount format');
+		expect(() => addProfileEntry(mae.id, 'invalid_type', '10')).toThrow('Invalid entry type');
 	});
 });

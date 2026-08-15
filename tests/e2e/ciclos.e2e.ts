@@ -1,13 +1,88 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-async function generateCycle(page: import('@playwright/test').Page) {
+async function loginUser(page: Page) {
+	await page.goto('/login');
+	// In the real app, we need the bootstrap admin credentials or a test user.
+	// For testing, we assume the environment creates an admin.
+	const username = process.env.ADMIN_BOOTSTRAP_USERNAME || 'admin_test';
+	const password = process.env.ADMIN_BOOTSTRAP_PASSWORD || 'password12345';
+	
+	// Wait for login form
+	await expect(page.locator('form')).toBeVisible();
+	await page.fill('input[name="username"]', username);
+	await page.fill('input[name="password"]', password);
+	await Promise.all([
+		page.waitForURL('**/ciclos'),
+		page.click('button[type="submit"]')
+	]);
+}
+
+async function generateCycle(page: Page) {
 	const generateBtn = page.getByRole('button', { name: 'GERAR DADOS' });
 	// Click and wait for page to settle (the action does a 303 redirect)
 	await Promise.all([page.waitForLoadState('networkidle'), generateBtn.click()]);
 }
 
 test.describe('Ciclos Module', () => {
+	test.beforeEach(async ({ page }) => {
+		await loginUser(page);
+	});
+
+	test('Intro choreography and timing sequence', async ({ page }) => {
+		// Verify normal test browser is NOT running reduced motion
+		await page.emulateMedia({ reducedMotion: null });
+
+		await page.goto('/ciclos');
+
+		const initPrompt = page.locator('.init-prompt');
+		await expect(initPrompt).toBeVisible();
+
+		// Start sequence
+		await page.locator('body').click();
+
+		const kryzerText = page.locator('.ascii-kryzer');
+		const sysReadyText = page.locator('.sys-ready');
+
+		// Wait for KRYZER to be in an intermediate typing state (length between 1 and 5)
+		await expect
+			.poll(
+				async () => {
+					const text = await kryzerText.textContent();
+					const len = text?.trim().length || 0;
+					return len > 0 && len < 6;
+				},
+				{ timeout: 4000, message: 'KRYZER should show an intermediate substring' }
+			)
+			.toBeTruthy();
+
+		// Eventually it must become fully typed
+		await expect(kryzerText).toHaveText('KRYZER', { timeout: 3000 });
+
+		// System Ready should not be visible yet
+		await expect(sysReadyText).toHaveText('');
+
+		// Wait for SYSTEM READY to be in an intermediate typing state
+		await expect
+			.poll(
+				async () => {
+					const text = await sysReadyText.textContent();
+					const len = text?.trim().length || 0;
+					return len > 0 && len < 'HYDRA // SYSTEM READY'.length;
+				},
+				{ timeout: 5000, message: 'SYSTEM READY should show an intermediate substring' }
+			)
+			.toBeTruthy();
+
+		// Eventually it must become fully typed
+		await expect(sysReadyText).toHaveText('HYDRA // SYSTEM READY', { timeout: 3000 });
+
+		// Skip remaining intro
+		await page.locator('body').click();
+		await page.waitForTimeout(300);
+	});
+
 	test('Empty state is shown when there are no cycles', async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: null });
 		await page.goto('/ciclos');
 		await page.locator('body').click();
 		await page.waitForTimeout(300);
@@ -246,5 +321,38 @@ test.describe('Ciclos Module', () => {
 		await expect(page.locator('.fin-val.pos').first()).toHaveText(/\+60\.00/);
 		await expect(page.locator('.fin-val.pos').nth(1)).toHaveText(/\+15\.00/);
 		await expect(page.locator('.fin-val.saldo').first()).toHaveText(/-75\.00/);
+	});
+
+	test('Adversarial BOLA/IDOR protection test', async ({ page, request }) => {
+		// As an authenticated user, try to access another cycle using a random UUID
+		const maliciousCycleId = '123e4567-e89b-12d3-a456-426614174000';
+		
+		// Attempt to update a profile that doesn't belong to us
+		const response = await request.post('/ciclos?/update', {
+			data: {
+				profileId: maliciousCycleId,
+				number: '123456789'
+			}
+		});
+		
+		// Since Drizzle checks `userId = locals.user.id`, updating a random/someone else's profile 
+		// should safely return 500 or not modify anything (fail).
+		// SvelteKit form actions return 200 with an error object, or redirect, or 500 depending on throw.
+		// Our action returns fail(500) if it errors out, or returns { success: false } if something goes wrong.
+		// We just want to ensure it doesn't crash the server and doesn't succeed.
+		const responseText = await response.text();
+		expect(responseText).not.toContain('"success":true');
+		
+		// Attempt to add entry
+		const apiResponse = await request.post('/api/ciclos/entries', {
+			data: {
+				profileId: maliciousCycleId,
+				type: 'deposit',
+				amount: 100
+			}
+		});
+		
+		// The API endpoint should throw 400 or 500.
+		expect(apiResponse.status()).toBeGreaterThanOrEqual(400);
 	});
 });

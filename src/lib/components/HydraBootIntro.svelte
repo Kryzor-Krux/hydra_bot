@@ -5,7 +5,7 @@
 		onStateChange?: (state: 'hidden' | 'revealing' | 'revealed') => void;
 	}>();
 
-	let state: 'initial' | 'booting' | 'skipping' | 'done' = $state('initial');
+	let bootState: 'initial' | 'booting' | 'skipping' | 'done' = $state('initial');
 	let phase: 'booting' | 'dimming' | 'dissolving' | 'scanline' | 'skipping_transition' =
 		$state('booting');
 	let dashboardPhase: 'hidden' | 'revealing' | 'revealed' = $state('hidden');
@@ -20,8 +20,15 @@
 		delay: number;
 	}[] = $state([]);
 
+	let kryzerText = $state('');
+	const FULL_KRYZER = 'KRYZER';
+
+	let sysReadyText = $state('');
+	const FULL_SYS_READY = 'HYDRA // SYSTEM READY';
+
 	let audioElement: HTMLAudioElement;
 	let fadeInterval: ReturnType<typeof setInterval>;
+	let skipTimeoutId: ReturnType<typeof setTimeout>;
 	let animationFrameId: number;
 
 	let useFallback = false;
@@ -50,9 +57,14 @@
 		return x - Math.floor(x);
 	}
 
+	let loggedDragon = false;
+	let loggedKryzer = false;
+	let loggedSysReady = false;
+
 	onMount(() => {
 		const rmQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 		reducedMotion = rmQuery.matches;
+		console.log(`[HydraBootIntro] initialized. prefers-reduced-motion: ${reducedMotion}`);
 
 		if (!reducedMotion) {
 			const frags = [];
@@ -79,12 +91,18 @@
 
 	onDestroy(() => {
 		if (fadeInterval) clearInterval(fadeInterval);
+		if (skipTimeoutId) clearTimeout(skipTimeoutId);
 		if (animationFrameId) cancelAnimationFrame(animationFrameId);
-		if (audioElement) audioElement.removeEventListener('ended', handleAudioEnded);
+		if (audioElement) {
+			audioElement.removeEventListener('ended', handleAudioEnded);
+			audioElement.pause();
+			audioElement.removeAttribute('src');
+			audioElement.load();
+		}
 	});
 
 	function handleAudioEnded() {
-		if (state === 'booting') {
+		if (bootState === 'booting') {
 			completeSequence();
 		}
 	}
@@ -95,16 +113,31 @@
 	}
 
 	function startVisuals(fallback: boolean) {
-		state = 'booting';
+		bootState = 'booting';
 		setDashboard('hidden');
 		useFallback = fallback;
 		if (fallback) fallbackStartTime = performance.now();
+		console.log(`[HydraBootIntro] sequence started. fallback: ${fallback}`);
 
 		function loop() {
-			if (state === 'booting') {
+			if (bootState === 'booting') {
 				const T = useFallback
 					? (performance.now() - fallbackStartTime) / 1000
 					: audioElement.currentTime;
+
+				if (T >= 0 && T < 2.52 && !loggedDragon) {
+					console.log(`[HydraBootIntro] [${T.toFixed(2)}s] Dragon phase started`);
+					loggedDragon = true;
+				}
+				if (T >= 2.52 && !loggedKryzer) {
+					console.log(`[HydraBootIntro] [${T.toFixed(2)}s] Dragon phase ended`);
+					console.log(`[HydraBootIntro] [${T.toFixed(2)}s] KRYZER phase started`);
+					loggedKryzer = true;
+				}
+				if (T >= 4.33 && !loggedSysReady) {
+					console.log(`[HydraBootIntro] [${T.toFixed(2)}s] SYSTEM READY phase started`);
+					loggedSysReady = true;
+				}
 
 				if (T >= 6.65 && phase === 'booting') {
 					phase = 'dimming';
@@ -119,10 +152,28 @@
 					phase = 'scanline';
 				}
 				if (T >= 7.51 || (audioElement.ended && T >= 7.5)) {
+					console.log(`[HydraBootIntro] [${T.toFixed(2)}s] sequence completed naturally`);
 					completeSequence();
 				}
+
+				if (bootState === 'booting' && !reducedMotion) {
+					const kryzerProgress = Math.max(0, Math.min(1, (T - 2.52) / (3.06 - 2.52)));
+					const kryzerChars = Math.floor(kryzerProgress * FULL_KRYZER.length);
+					kryzerText = FULL_KRYZER.slice(0, kryzerChars);
+
+					const sysProgress = Math.max(0, Math.min(1, (T - 4.33) / (4.94 - 4.33)));
+					const sysChars = Math.floor(sysProgress * FULL_SYS_READY.length);
+					sysReadyText = FULL_SYS_READY.slice(0, sysChars);
+				} else if (bootState === 'booting' && reducedMotion) {
+					// In reduced motion, we can just show the full text immediately when its time comes,
+					// or we can just let it type. The user said:
+					// "preserve the timed information sequence: KRYZER appears at 2.52s, SYSTEM READY appears at 4.33s"
+					// We'll just show the full text instantly when its time is reached.
+					if (T >= 2.52) kryzerText = FULL_KRYZER;
+					if (T >= 4.33) sysReadyText = FULL_SYS_READY;
+				}
 			}
-			if (state !== 'done') {
+			if (bootState !== 'done') {
 				animationFrameId = requestAnimationFrame(loop);
 			}
 		}
@@ -151,33 +202,33 @@
 	}
 
 	function handleInteraction() {
-		if (state === 'initial') {
+		if (bootState === 'initial') {
 			initializeSequence();
-		} else if (state === 'booting') {
+		} else if (bootState === 'booting') {
 			skipSequence();
 		}
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (['Enter', ' ', 'Escape'].includes(event.key)) {
-			if (state === 'initial') {
+			if (bootState === 'initial') {
 				initializeSequence();
-			} else if (state === 'booting') {
+			} else if (bootState === 'booting') {
 				skipSequence();
 			}
 		}
 	}
 
 	function completeSequence() {
-		if (state === 'booting' || state === 'skipping') {
-			state = 'done';
+		if (bootState === 'booting' || bootState === 'skipping') {
+			bootState = 'done';
 			setDashboard('revealed');
 		}
 	}
 
 	function skipSequence() {
-		if (state === 'booting') {
-			state = 'skipping';
+		if (bootState === 'booting') {
+			bootState = 'skipping';
 			phase = 'skipping_transition';
 			setDashboard('revealing');
 
@@ -194,7 +245,7 @@
 				}, 30);
 			}
 
-			setTimeout(() => {
+			skipTimeoutId = setTimeout(() => {
 				completeSequence();
 			}, 250);
 		}
@@ -203,20 +254,20 @@
 
 <svelte:window onkeydown={handleKeydown} onmousedown={handleInteraction} />
 
-{#if state !== 'done'}
+{#if bootState !== 'done'}
 	<div
-		class="hydra-intro {state} {phase} {reducedMotion ? 'reduced-motion' : ''}"
+		class="hydra-intro {bootState} {phase} {reducedMotion ? 'reduced-motion' : ''}"
 		aria-hidden="true"
 		inert
 	>
-		{#if state === 'initial'}
+		{#if bootState === 'initial'}
 			<div class="init-screen">
 				<div class="init-brand">HYDRA</div>
 				<div class="init-prompt">CLICK TO INITIALIZE<span class="cursor">_</span></div>
 			</div>
 		{/if}
 
-		{#if state === 'booting' || state === 'skipping'}
+		{#if bootState === 'booting' || bootState === 'skipping'}
 			{#if !reducedMotion}
 				<div class="bg-fragments">
 					{#each backgroundFragments as frag (frag.id)}
@@ -266,13 +317,13 @@
  |_|  |_|   |_|   |_____/|_|  \_\/_/    \_\
 					</pre>
 					<div class="kryzer-wrapper">
-						<div class="ascii-kryzer">KRYZER</div>
+						<div class="ascii-kryzer">{kryzerText}</div>
 						<span class="kryzer-cursor">_</span>
 					</div>
 				</div>
 
 				<div class="sys-ready-wrapper">
-					<div class="sys-ready">HYDRA // SYSTEM READY</div>
+					<div class="sys-ready">{sysReadyText}</div>
 					<span class="sys-cursor">_</span>
 				</div>
 			</div>
@@ -529,10 +580,8 @@
 		color: #dc2626;
 		margin: 0;
 		text-align: center;
-		white-space: nowrap;
-		clip-path: inset(0 100% 0 0);
+		white-space: pre;
 		animation:
-			type-right 0.54s steps(6, end) 2.52s forwards,
 			glow-glitch 0.4s cubic-bezier(0.16, 1, 0.3, 1) 2.52s forwards,
 			flicker 3s infinite 3.06s;
 	}
@@ -544,15 +593,6 @@
 		color: #dc2626;
 		animation: blink 0.8s step-end infinite;
 		margin-left: -0.2rem;
-	}
-
-	@keyframes type-right {
-		0% {
-			clip-path: inset(0 100% 0 0);
-		}
-		100% {
-			clip-path: inset(0 0 0 0);
-		}
 	}
 
 	@keyframes fade-in {
@@ -629,9 +669,7 @@
 		font-size: 0.7rem;
 		color: #71717a;
 		letter-spacing: 1.5px;
-		clip-path: inset(0 100% 0 0);
-		animation: type-right 0.61s steps(21, end) 4.33s forwards;
-		white-space: nowrap;
+		white-space: pre;
 	}
 
 	.sys-cursor {
@@ -697,17 +735,29 @@
 	}
 
 	/* REDUCED MOTION */
-	.reduced-motion .ascii-dragon,
-	.reduced-motion .ascii-hydra,
-	.reduced-motion .ascii-kryzer,
-	.reduced-motion .sys-ready,
-	.reduced-motion .kryzer-wrapper,
-	.reduced-motion .sys-ready-wrapper {
-		animation: fade-in 1s ease 0.5s forwards !important;
+	.reduced-motion .ascii-dragon {
+		animation: fade-in 2.52s ease 0s forwards !important;
 		clip-path: none !important;
 		transform: none !important;
-		text-shadow: none !important;
 		filter: none !important;
+	}
+
+	.reduced-motion .ascii-hydra {
+		animation: fade-in 0.6s ease 1.5s forwards !important;
+		clip-path: none !important;
+		transform: none !important;
+	}
+
+	.reduced-motion .kryzer-wrapper,
+	.reduced-motion .ascii-kryzer {
+		animation: fade-in 0.54s ease 2.52s forwards !important;
+		text-shadow: none !important;
+		transform: none !important;
+	}
+
+	.reduced-motion .sys-ready-wrapper,
+	.reduced-motion .sys-ready {
+		animation: fade-in 0.61s ease 4.33s forwards !important;
 	}
 
 	.reduced-motion .init-screen {

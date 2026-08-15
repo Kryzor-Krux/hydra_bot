@@ -1,30 +1,26 @@
-import { json } from '@sveltejs/kit';
+import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { addProfileEntry, getProfileTotals } from '$lib/modules/ciclos/server/repository';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
-		const data = await request.json();
-		const profileId = data.profileId;
-		const type = data.type;
-		const amountStr = data.amount;
+		const { profileId, type, amount } = await request.json();
 
-		if (!profileId || !type || !amountStr) {
-			return json({ success: false, error: 'Missing required fields' }, { status: 400 });
+		if (!profileId || !type || amount === undefined) {
+			throw error(400, 'Missing required fields');
 		}
 
-		addProfileEntry(profileId, type, amountStr);
-		const totals = getProfileTotals(profileId);
+		const userId = locals.user?.id;
+		if (!userId) {
+			throw error(401, 'Unauthorized');
+		}
+
+		await addProfileEntry(profileId, userId, type, amount);
+		const totals = await getProfileTotals(profileId, userId);
 
 		return json({ success: true, totals });
-	} catch (error: unknown) {
-		console.error('Error adding entry via API:', error);
-		return json(
-			{
-				success: false,
-				error: error instanceof Error ? error.message : 'Falha ao adicionar registro.'
-			},
-			{ status: 500 }
-		);
+	} catch (err: any) {
+		console.error('API Error adding entry:', err);
+		throw error(400, err.message || 'Falha ao processar requisição');
 	}
 };

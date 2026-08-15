@@ -25,11 +25,14 @@ em até 7 dias.
 
 ## Checklist mínimo (OWASP Top 10) antes de qualquer release
 
-- [ ] Nenhuma injeção (SQL/NoSQL/Comando) possível — todas as queries parametrizadas
-- [ ] Autenticação/sessão seguem boas práticas (nada de senha em texto puro, tokens com expiração)
-- [ ] Dados sensíveis criptografados em trânsito e em repouso
-- [ ] Controle de acesso testado (sem "broken access control")
-- [ ] Configurações padrão seguras (sem debug mode em produção)
-- [ ] Dependências sem CVE crítico/alto em aberto
-- [ ] Logs não expõem dados sensíveis
-- [ ] Rate limiting ativo em endpoints públicos
+## 3. Database & Injection Prevention
+- Drizzle ORM safely parameterizes all SQL queries via `postgres.js`
+- User ownership is strictly enforced at the query level. Any data retrieval or mutation performs a conditional `userId` check to prevent BOLA (Broken Object Level Authorization) or IDOR attacks.
+
+## 4. Rate Limiting & DoS Protection
+- Application-level rate limiting is deliberately omitted to prevent excessive Redis/Database overhead on serverless edge functions.
+- **Requirement**: Rate Limiting must be enforced at the Infrastructure/CDN layer (e.g., Vercel WAF or Cloudflare Rules) to strictly throttle `/api/auth` and `/login` POST requests.
+
+## 5. Third-Party Dependencies
+- All npm dependencies are periodically audited.
+- Docker bases use Alpine to minimize CVE surface area.

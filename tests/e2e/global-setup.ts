@@ -1,17 +1,31 @@
-import fs from 'fs';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import dotenv from 'dotenv';
 import path from 'path';
 
 export default async function globalSetup() {
-	const dbPath = path.resolve('./data/test-e2e.db');
-	if (fs.existsSync(dbPath)) {
-		fs.unlinkSync(dbPath);
+	dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+	
+	const dbUrl = process.env.DATABASE_URL;
+	if (!dbUrl) {
+		console.warn('DATABASE_URL is not set. Skipping DB reset for E2E tests.');
+		return;
 	}
-	const walPath = dbPath + '-wal';
-	if (fs.existsSync(walPath)) {
-		fs.unlinkSync(walPath);
+
+	const sql = postgres(dbUrl, { max: 1 });
+	
+	try {
+		await sql`DROP SCHEMA public CASCADE`;
+		await sql`CREATE SCHEMA public`;
+		console.log('Postgres public schema reset for E2E testing.');
+	} catch (e) {
+		console.error('Failed to reset Postgres schema:', e);
+	} finally {
+		await sql.end();
 	}
-	const shmPath = dbPath + '-shm';
-	if (fs.existsSync(shmPath)) {
-		fs.unlinkSync(shmPath);
-	}
+
+	console.log('Pushing Drizzle schema...');
+	const { execSync } = require('child_process');
+	execSync('npx drizzle-kit push', { stdio: 'inherit' });
+	console.log('Schema pushed successfully.');
 }

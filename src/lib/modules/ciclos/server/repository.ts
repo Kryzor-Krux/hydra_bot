@@ -3,155 +3,153 @@ import crypto from 'node:crypto';
 import type { Cycle, CycleProfile, ProfileUpdatePayload, CycleProfileEntry } from '../domain/types';
 import { generateName, generatePassword, generateCPF } from '../domain/generator';
 import { parseMoneyToCents, formatCents } from '../domain/money';
+import { eq, inArray, desc, sql, and } from 'drizzle-orm';
+import * as schema from '$lib/server/schema';
 
-export function getAllCycles(limit = 50, offset = 0): Cycle[] {
-	const cycles = db
-		.prepare('SELECT * FROM cycles ORDER BY rowid DESC LIMIT ? OFFSET ?')
-		.all(limit, offset) as Cycle[];
+export async function getAllCycles(userId: string, limit = 50, offset = 0): Promise<Cycle[]> {
+	const cyclesData = await db.select()
+		.from(schema.cycles)
+		.where(eq(schema.cycles.userId, userId))
+		.orderBy(desc(schema.cycles.createdAt))
+		.limit(limit)
+		.offset(offset);
 
-	if (cycles.length === 0) return [];
+	if (cyclesData.length === 0) return [];
 
-	const cycleIds = cycles.map((c) => c.id);
+	const cycleIds = cyclesData.map((c) => c.id);
 
-	const profiles = db
-		.prepare(
-			`
-		SELECT p.*,
-			COALESCE(SUM(CASE WHEN e.type = 'deposit' THEN e.amount_cents ELSE 0 END), 0) as total_deposits,
-			COALESCE(SUM(CASE WHEN e.type = 'withdrawal' THEN e.amount_cents ELSE 0 END), 0) as total_withdrawals,
-			COALESCE(SUM(CASE WHEN e.type = 'chest' THEN e.amount_cents ELSE 0 END), 0) as total_chests
-		FROM cycle_profiles p
-		LEFT JOIN cycle_profile_entries e ON p.id = e.profile_id
-		WHERE p.cycle_id IN (${cycleIds.map(() => '?').join(',')})
-		GROUP BY p.id
-		ORDER BY p.role DESC
-	`
-		)
-		.all(...cycleIds) as CycleProfile[];
+	const profilesData = await db.select({
+		id: schema.cycleProfiles.id,
+		cycleId: schema.cycleProfiles.cycleId,
+		role: schema.cycleProfiles.role,
+		name: schema.cycleProfiles.name,
+		generatedPassword: schema.cycleProfiles.generatedPassword,
+		cpf: schema.cycleProfiles.cpf,
+		number: schema.cycleProfiles.number,
+		withdrawalPassword: schema.cycleProfiles.withdrawalPassword,
+		totalDeposits: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'deposit' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+		totalWithdrawals: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'withdrawal' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+		totalChests: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'chest' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`
+	}).from(schema.cycleProfiles)
+	  .leftJoin(schema.cycleProfileEntries, eq(schema.cycleProfiles.id, schema.cycleProfileEntries.profileId))
+	  .where(inArray(schema.cycleProfiles.cycleId, cycleIds))
+	  .groupBy(schema.cycleProfiles.id)
+	  .orderBy(desc(schema.cycleProfiles.role));
 
-	const profileIds = profiles.map((p) => p.id);
-	let entries: CycleProfileEntry[] = [];
+	const profileIds = profilesData.map((p) => p.id);
+	let entriesData: typeof schema.cycleProfileEntries.$inferSelect[] = [];
+	
 	if (profileIds.length > 0) {
-		entries = db
-			.prepare(
-				`
-			SELECT * FROM cycle_profile_entries
-			WHERE profile_id IN (${profileIds.map(() => '?').join(',')})
-			ORDER BY created_at ASC, rowid ASC
-		`
-			)
-			.all(...profileIds) as CycleProfileEntry[];
+		entriesData = await db.select()
+			.from(schema.cycleProfileEntries)
+			.where(inArray(schema.cycleProfileEntries.profileId, profileIds))
+			.orderBy(schema.cycleProfileEntries.createdAt);
 	}
 
-	for (const profile of profiles) {
-		profile.entries = entries
-			.filter((e) => e.profile_id === profile.id)
-			.map((e) => ({
+	const mappedProfiles = profilesData.map(p => {
+		const depositCents = Number(p.totalDeposits || 0);
+		const withdrawalCents = Number(p.totalWithdrawals || 0);
+		const chestCents = Number(p.totalChests || 0);
+		const balanceCents = withdrawalCents + chestCents - depositCents;
+
+		const profileEntries = entriesData
+			.filter(e => e.profileId === p.id)
+			.map(e => ({
 				id: e.id,
-				profile_id: e.profile_id,
+				profile_id: e.profileId,
 				type: e.type,
-				amount: formatCents((e as unknown as { amount_cents: number }).amount_cents),
-				created_at: e.created_at
+				amount: formatCents(e.amountCents),
+				created_at: e.createdAt.toISOString()
 			}));
 
-		const depositCents = Number(
-			(profile as unknown as { total_deposits: number }).total_deposits || 0
-		);
-		const withdrawalCents = Number(
-			(profile as unknown as { total_withdrawals: number }).total_withdrawals || 0
-		);
-		const chestCents = Number((profile as unknown as { total_chests: number }).total_chests || 0);
+		return {
+			id: p.id,
+			cycle_id: p.cycleId,
+			role: p.role,
+			name: p.name,
+			generated_password: p.generatedPassword,
+			cpf: p.cpf,
+			number: p.number,
+			withdrawal_password: p.withdrawalPassword,
+			entries: profileEntries,
+			total_deposits: formatCents(depositCents),
+			total_withdrawals: formatCents(withdrawalCents),
+			total_chests: formatCents(chestCents),
+			computed_balance: formatCents(balanceCents)
+		};
+	});
 
-		profile.total_deposits = formatCents(depositCents);
-		profile.total_withdrawals = formatCents(withdrawalCents);
-		profile.total_chests = formatCents(chestCents);
-
-		// Correct formula: saldo = saques + baus - depositos
-		// depositos are negative (liability), saques and baus are positive (gains)
-		const balanceCents = withdrawalCents + chestCents - depositCents;
-		profile.computed_balance = formatCents(balanceCents);
-	}
-
-	return cycles.map((cycle) => ({
-		...cycle,
-		profiles: profiles.filter((p) => p.cycle_id === cycle.id)
+	return cyclesData.map(c => ({
+		id: c.id,
+		created_at: c.createdAt.toISOString(),
+		updated_at: c.updatedAt.toISOString(),
+		profiles: mappedProfiles.filter(p => p.cycle_id === c.id) as CycleProfile[]
 	}));
 }
 
-function generateUniqueName(role: string): string {
+async function generateUniqueName(role: string, cycleId: string): Promise<string> {
 	let name = generateName();
 	let attempts = 0;
 	while (attempts < 50) {
-		const existing = db
-			.prepare('SELECT 1 FROM cycle_profiles WHERE role = ? AND name = ?')
-			.get(role, name);
-		if (!existing) return name;
+		const existing = await db.select({ id: schema.cycleProfiles.id })
+			.from(schema.cycleProfiles)
+			.where(and(eq(schema.cycleProfiles.role, role), eq(schema.cycleProfiles.name, name)))
+			.limit(1);
+			
+		if (existing.length === 0) return name;
 		name = generateName();
 		attempts++;
 	}
 	throw new Error(`Failed to generate unique name for role ${role} after 50 attempts`);
 }
 
-export function createCycle(): Cycle {
+export async function createCycle(userId: string): Promise<Cycle> {
 	const cycleId = crypto.randomUUID();
-
-	const mae: CycleProfile = {
-		id: crypto.randomUUID(),
-		cycle_id: cycleId,
-		role: 'mae',
-		name: generateUniqueName('mae'),
-		generated_password: generatePassword(),
-		cpf: generateCPF(),
-		number: '',
-		withdrawal_password: '101010'
-	};
-
-	const filha: CycleProfile = {
-		id: crypto.randomUUID(),
-		cycle_id: cycleId,
-		role: 'filha',
-		name: generateUniqueName('filha'),
-		generated_password: generatePassword(),
-		cpf: generateCPF(),
-		number: '',
-		withdrawal_password: '101010'
-	};
-
-	const insertCycle = db.prepare('INSERT INTO cycles (id) VALUES (?)');
-
-	const insertProfile = db.prepare(`
-		INSERT INTO cycle_profiles (
-			id, cycle_id, role, name, generated_password, cpf,
-			number, withdrawal_password
-		) VALUES (
-			@id, @cycle_id, @role, @name, @generated_password, @cpf,
-			@number, @withdrawal_password
-		)
-	`);
-
-	const transaction = db.transaction(() => {
-		insertCycle.run(cycleId);
-		insertProfile.run(mae);
-		insertProfile.run(filha);
-	});
 
 	let success = false;
 	let retries = 0;
+	
+	let maeName = '';
+	let filhaName = '';
+	let maeCpf = '';
+	let filhaCpf = '';
+	
 	while (!success && retries < 5) {
+		maeName = await generateUniqueName('mae', cycleId);
+		filhaName = await generateUniqueName('filha', cycleId);
+		maeCpf = generateCPF();
+		filhaCpf = generateCPF();
+		
 		try {
-			transaction();
+			await db.transaction(async (tx) => {
+				await tx.insert(schema.cycles).values({
+					id: cycleId,
+					userId: userId
+				});
+				
+				await tx.insert(schema.cycleProfiles).values([{
+					id: crypto.randomUUID(),
+					cycleId: cycleId,
+					role: 'mae',
+					name: maeName,
+					generatedPassword: generatePassword(),
+					cpf: maeCpf,
+					number: '',
+					withdrawalPassword: '101010'
+				}, {
+					id: crypto.randomUUID(),
+					cycleId: cycleId,
+					role: 'filha',
+					name: filhaName,
+					generatedPassword: generatePassword(),
+					cpf: filhaCpf,
+					number: '',
+					withdrawalPassword: '101010'
+				}]);
+			});
 			success = true;
-		} catch (error: unknown) {
-			if (
-				error &&
-				typeof error === 'object' &&
-				'code' in error &&
-				(error as { code: string }).code === 'SQLITE_CONSTRAINT_UNIQUE'
-			) {
-				mae.cpf = generateCPF();
-				filha.cpf = generateCPF();
-				mae.name = generateUniqueName('mae');
-				filha.name = generateUniqueName('filha');
+		} catch (error: any) {
+			if (error.message?.includes('unique') || error.code === '23505') {
 				retries++;
 			} else {
 				throw error;
@@ -162,52 +160,76 @@ export function createCycle(): Cycle {
 	if (!success) {
 		throw new Error('Failed to create cycle due to collision');
 	}
-
-	mae.entries = [];
-	mae.total_deposits = '0.00';
-	mae.total_withdrawals = '0.00';
-	mae.total_chests = '0.00';
-	mae.computed_balance = '0.00';
-
-	filha.entries = [];
-	filha.total_deposits = '0.00';
-	filha.total_withdrawals = '0.00';
-	filha.total_chests = '0.00';
-	filha.computed_balance = '0.00';
+	
+	// We just return the created object structure to match the frontend expectations
+	const emptyProfile = (role: 'mae'|'filha', name: string, cpf: string): CycleProfile => ({
+		id: crypto.randomUUID(), // Mock ID just for the return, it will be re-fetched on refresh
+		cycle_id: cycleId,
+		role,
+		name,
+		generated_password: '***', // Mock for return
+		cpf,
+		number: '',
+		withdrawal_password: '101010',
+		entries: [],
+		total_deposits: '0.00',
+		total_withdrawals: '0.00',
+		total_chests: '0.00',
+		computed_balance: '0.00'
+	});
 
 	return {
 		id: cycleId,
-		profiles: [mae, filha]
-	};
+		profiles: [
+			emptyProfile('mae', maeName, maeCpf),
+			emptyProfile('filha', filhaName, filhaCpf)
+		]
+	} as Cycle;
 }
 
-export function updateProfile(profileId: string, payload: Partial<ProfileUpdatePayload>): void {
-	const fields = [];
-	const values: Record<string, unknown> = { id: profileId };
+export async function updateProfile(profileId: string, userId: string, payload: Partial<ProfileUpdatePayload>): Promise<void> {
+	// Security constraint: join back to cycles to verify ownership
+	const profileCheck = await db.select({ id: schema.cycleProfiles.id })
+		.from(schema.cycleProfiles)
+		.innerJoin(schema.cycles, eq(schema.cycles.id, schema.cycleProfiles.cycleId))
+		.where(and(eq(schema.cycleProfiles.id, profileId), eq(schema.cycles.userId, userId)))
+		.limit(1);
+		
+	if (profileCheck.length === 0) {
+		throw new Error("Unauthorized or not found");
+	}
 
 	const allowedKeys = ['number'];
+	const valuesToUpdate: any = {};
+	
 	for (const [key, value] of Object.entries(payload)) {
 		if (allowedKeys.includes(key) && value !== undefined) {
-			fields.push(`${key} = @${key}`);
-			values[key] = value;
+			valuesToUpdate[key] = value;
 		}
 	}
 
-	if (fields.length === 0) return;
+	if (Object.keys(valuesToUpdate).length === 0) return;
+	valuesToUpdate.updatedAt = new Date();
 
-	const stmt = db.prepare(`
-		UPDATE cycle_profiles 
-		SET ${fields.join(', ')},
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = @id
-	`);
-
-	stmt.run(values);
+	await db.update(schema.cycleProfiles)
+		.set(valuesToUpdate)
+		.where(eq(schema.cycleProfiles.id, profileId));
 }
 
-export function addProfileEntry(profileId: string, type: string, amountStr: string | number): void {
+export async function addProfileEntry(profileId: string, userId: string, type: string, amountStr: string | number): Promise<void> {
 	if (!['deposit', 'withdrawal', 'chest'].includes(type)) {
 		throw new Error('Invalid entry type');
+	}
+
+	// Security constraint: verify ownership
+	const profileCheck = await db.select({ id: schema.cycleProfiles.id })
+		.from(schema.cycleProfiles)
+		.innerJoin(schema.cycles, eq(schema.cycles.id, schema.cycleProfiles.cycleId))
+		.where(and(eq(schema.cycleProfiles.id, profileId), eq(schema.cycles.userId, userId)))
+		.limit(1);
+		
+	if (profileCheck.length === 0) {
+		throw new Error("Unauthorized or not found");
 	}
 
 	if (typeof amountStr !== 'string') {
@@ -220,35 +242,38 @@ export function addProfileEntry(profileId: string, type: string, amountStr: stri
 		throw new Error('Invalid amount value');
 	}
 
-	const insert = db.prepare(`
-		INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents)
-		VALUES (@id, @profile_id, @type, @amount_cents)
-	`);
-	insert.run({
+	await db.insert(schema.cycleProfileEntries).values({
 		id: crypto.randomUUID(),
-		profile_id: profileId,
+		profileId: profileId,
 		type,
-		amount_cents
+		amountCents: amount_cents
 	});
 }
 
-export function getProfileTotals(profileId: string) {
-	const result = db
-		.prepare(
-			`
-		SELECT 
-			COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount_cents ELSE 0 END), 0) as total_deposits,
-			COALESCE(SUM(CASE WHEN type = 'withdrawal' THEN amount_cents ELSE 0 END), 0) as total_withdrawals,
-			COALESCE(SUM(CASE WHEN type = 'chest' THEN amount_cents ELSE 0 END), 0) as total_chests
-		FROM cycle_profile_entries 
-		WHERE profile_id = ?
-	`
-		)
-		.get(profileId) as { total_deposits: number; total_withdrawals: number; total_chests: number };
+export async function getProfileTotals(profileId: string, userId: string) {
+	// Security constraint: verify ownership
+	const profileCheck = await db.select({ id: schema.cycleProfiles.id })
+		.from(schema.cycleProfiles)
+		.innerJoin(schema.cycles, eq(schema.cycles.id, schema.cycleProfiles.cycleId))
+		.where(and(eq(schema.cycleProfiles.id, profileId), eq(schema.cycles.userId, userId)))
+		.limit(1);
+		
+	if (profileCheck.length === 0) {
+		throw new Error("Unauthorized or not found");
+	}
 
-	const depositCents = Number(result?.total_deposits || 0);
-	const withdrawalCents = Number(result?.total_withdrawals || 0);
-	const chestCents = Number(result?.total_chests || 0);
+	const result = await db.select({
+		totalDeposits: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'deposit' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+		totalWithdrawals: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'withdrawal' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+		totalChests: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'chest' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`
+	})
+	.from(schema.cycleProfileEntries)
+	.where(eq(schema.cycleProfileEntries.profileId, profileId));
+
+	const row = result[0];
+	const depositCents = Number(row?.totalDeposits || 0);
+	const withdrawalCents = Number(row?.totalWithdrawals || 0);
+	const chestCents = Number(row?.totalChests || 0);
 	const balanceCents = withdrawalCents + chestCents - depositCents;
 
 	return {

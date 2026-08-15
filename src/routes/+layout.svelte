@@ -11,7 +11,9 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<HydraBootIntro onStateChange={(s) => (dashboardState = s)} />
+{#if dashboardState !== 'revealed'}
+	<HydraBootIntro onStateChange={(s) => (dashboardState = s)} />
+{/if}
 
 <div id="hydra-dashboard" class="dashboard-{dashboardState}">
 	{@render children()}
@@ -40,8 +42,8 @@
 	}
 	.dashboard-revealed {
 		opacity: 1;
-		filter: blur(0);
-		transform: scale(1);
+		filter: none;
+		transform: none;
 		transition: none; /* Already settled */
 	}
 </style>

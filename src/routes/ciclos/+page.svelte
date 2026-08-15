@@ -586,7 +586,10 @@ saldo: ${saldo}`;
 	.app::before {
 		content: '';
 		position: fixed;
-		top: -50%; left: -50%; width: 200%; height: 200%;
+		top: -50%;
+		left: -50%;
+		width: 200%;
+		height: 200%;
 		background: radial-gradient(circle at 50% 50%, rgba(220, 38, 38, 0.04) 0%, transparent 50%);
 		pointer-events: none;
 		z-index: -1;
@@ -953,7 +956,9 @@ saldo: ${saldo}`;
 		padding: 0.22rem 0.45rem;
 		font-family: 'JetBrains Mono', monospace;
 		outline: none;
-		transition: border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+		transition:
+			border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+			box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
 	.id-input:focus {

@@ -9,6 +9,8 @@ async function generateCycle(page: import('@playwright/test').Page) {
 test.describe('Ciclos Module', () => {
 	test('Empty state is shown when there are no cycles', async ({ page }) => {
 		await page.goto('/ciclos');
+		await page.locator('body').click();
+		await page.waitForTimeout(300);
 		// No cycles should be visible
 		await expect(page.locator('.cycle-card')).toHaveCount(0);
 		// Empty state should be visible
@@ -18,6 +20,8 @@ test.describe('Ciclos Module', () => {
 
 	test('Full generation, financial entry, and persistence flow', async ({ page }) => {
 		await page.goto('/ciclos');
+		await page.locator('body').click();
+		await page.waitForTimeout(300);
 
 		const generateBtn = page.getByRole('button', { name: 'GERAR DADOS' });
 		await expect(generateBtn).toBeVisible();
@@ -110,6 +114,8 @@ test.describe('Ciclos Module', () => {
 
 	test('Only 5 cycles shown initially; load-more adds 5 more', async ({ page }) => {
 		await page.goto('/ciclos');
+		await page.locator('body').click();
+		await page.waitForTimeout(300);
 
 		// Generate enough cycles to ensure at least 6 exist (including any from prior tests)
 		// We generate 6 to guarantee there are more than 5 even if DB starts empty
@@ -134,6 +140,8 @@ test.describe('Ciclos Module', () => {
 
 	test('Newest cycle appears first after generation', async ({ page }) => {
 		await page.goto('/ciclos');
+		await page.locator('body').click();
+		await page.waitForTimeout(300);
 
 		// Generate first cycle and set a number
 		await generateCycle(page);
@@ -154,6 +162,8 @@ test.describe('Ciclos Module', () => {
 
 	test('Double submission guard on entry forms', async ({ page }) => {
 		await page.goto('/ciclos');
+		await page.locator('body').click();
+		await page.waitForTimeout(300);
 		await generateCycle(page);
 
 		const depositInput = page.locator('.entry-input.dep').first();
@@ -173,6 +183,8 @@ test.describe('Ciclos Module', () => {
 
 	test('Financial input deterministic rapid stress test', async ({ page }) => {
 		await page.goto('/ciclos');
+		await page.locator('body').click();
+		await page.waitForTimeout(300);
 		await generateCycle(page);
 
 		const depInput = page.locator('.entry-input.dep').first();

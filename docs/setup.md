@@ -1,39 +1,36 @@
 # Setup
 
 ## Requisitos
-- `<preencher: runtime da stack, ex. Node 22 / Python 3.12>`
+- Node LTS (ex. Node 22)
 - `pre-commit` (`pip install pre-commit`)
 - `git`
 
 ## Passo a passo
 ```bash
-git clone <preencher: url-do-repo>
-cd <preencher: nome-do-projeto>
+git clone <url-do-repo>
+cd hydra_bot
 
 # instalar dependências
-<preencher>
+npm install
 
 # ativar hooks locais de segurança e commit
 pre-commit install
 pre-commit install --hook-type commit-msg
 
 # rodar em desenvolvimento
-<preencher>
+npm run dev
 ```
+
+## Banco de Dados
+O projeto utiliza um banco de dados SQLite local.
+Copie `.env.example` para `.env` e ajuste se necessário (o padrão `DATABASE_PATH=./data/ciclos.db` é suficiente).
+Ao rodar `npm run dev` as tabelas serão criadas automaticamente.
 
 ## Escolha entre Dependabot e Renovate
 O repo vem com os dois configurados (`.github/dependabot.yml` e `renovate.json`).
 Escolha um e remova o outro para evitar PRs duplicados.
 
-## Documentação navegável (opcional)
-```bash
-pip install mkdocs-material
-mkdocs serve
-```
-
 ## Playwright (testes e2e)
 ```bash
-npm install -D @playwright/test
-npx playwright install
-npx playwright test
+npm run test:e2e
 ```

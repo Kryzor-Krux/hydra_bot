@@ -5,16 +5,15 @@ venha a ler este arquivo) trabalhando neste repositório. Mantenha este arquivo
 abaixo de 150 linhas — ele é carregado inteiro no contexto do agente a cada tarefa.
 
 ## Visão geral do projeto
-<!-- Preencha: uma frase sobre o que este projeto faz. -->
+O projeto HYDRA é uma ferramenta focada na geração e gerenciamento de ciclos de perfis de teste.
 
 ## Comandos
-- Instalar deps: `<preencher>`
-- Rodar em dev: `<preencher>`
-- Build: `<preencher>`
-- Lint: `<preencher>`
-- Testes unitários: `pytest tests/unit -v` ou `npm test -- tests/unit`
-- Testes de integração: `pytest tests/integration`
-- Testes e2e: `npx playwright test`
+- Instalar deps: `npm install`
+- Rodar em dev: `npm run dev`
+- Build: `npm run build`
+- Lint: `npm run check && npm run lint`
+- Testes unitários/integração: `npm run test:unit`
+- Testes e2e: `npm run test:e2e`
 
 ## Arquitetura
 - `/specs`  -> especificações geradas via spec-kit (fonte da verdade do que construir)

@@ -1,34 +1,39 @@
-# Repo Template
+# HYDRA
 
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Security: gitleaks](https://img.shields.io/badge/secrets-gitleaks-blue)]()
-
-Template padrão para novos projetos. Cobre: organização (spec-driven), padrão
-de commits/branches/tasks, segurança automatizada (SAST/SCA/secrets), testes,
-documentação e instruções para agentes de IA (Antigravity/Gemini).
+Ferramenta de testes focada na geração e gerenciamento de ciclos de perfis.
 
 ## Como usar
-1. "Use this template" no GitHub para criar um repositório novo a partir deste.
-2. Preencha as seções `<preencher>` em `AGENTS.md`, `docs/setup.md` e `renovate.json` / `dependabot.yml`.
-3. Rode `pre-commit install` (veja `docs/setup.md`) para ativar os hooks locais.
-4. Comece pelo spec-kit: `specify init` na raiz para gerar a primeira spec em `/specs`.
+1. Crie o arquivo `.env` (use `.env.example` como base).
+2. Instale dependências: `npm install`.
+3. Rode em desenvolvimento: `npm run dev`.
 
 ## Estrutura
 ```
-.agents/      skills e subagentes do Antigravity
-specs/        especificações (spec-kit)
-plans/        planos derivados das specs
-tasks/        tasks rastreáveis (TASK-001.md...)
-src/          código-fonte
-tests/        unit / integration / e2e
-docs/         documentação viva
+src/          código-fonte SvelteKit + SQLite (better-sqlite3)
+tests/        unit / integration / e2e (Vitest + Playwright)
+docs/         documentação do projeto
+data/         banco de dados SQLite local
 ```
 
-## Stack de ferramentas
-Veja `docs/architecture.md` (ferramentas de organização/agentes) e
-`docs/security.md` (ferramentas de segurança) para a lista completa e o
-motivo de cada escolha.
+## Developing
 
-## Licença
-MIT — veja [LICENSE](LICENSE).
+Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+
+```sh
+npm run dev
+
+# or start the server and open the app in a new browser tab
+npm run dev -- --open
+```
+
+## Building
+
+To create a production version of your app:
+
+```sh
+npm run build
+```
+
+You can preview the production build with `npm run preview`.
+
+> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.

@@ -77,7 +77,9 @@ export const actions: Actions = {
 
 		try {
 			addProfileEntry(profileId, type, amountStr);
-			return { success: true };
+			const { getProfileTotals } = await import('$lib/modules/ciclos/server/repository');
+			const totals = getProfileTotals(profileId);
+			return { success: true, totals };
 		} catch (error: unknown) {
 			console.error('Error adding entry:', error);
 			return {

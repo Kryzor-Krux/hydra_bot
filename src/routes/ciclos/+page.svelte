@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { tick } from 'svelte';
 	import type { PageData, ActionData } from './$types';
 	import type { Cycle, CycleProfile } from '$lib/modules/ciclos/domain/types';
+
+	import { parseMoneyToCents, formatCents } from '$lib/modules/ciclos/domain/money';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let loading = $state(false);
@@ -17,6 +18,97 @@
 	// Flash state for when a value is added successfully
 	let flashProfileId = $state('');
 	let flashType = $state('');
+
+	// Local state for deterministic keyboard flow and optimistic UX
+	let localTotals = $state<
+		Record<
+			string,
+			{
+				total_deposits: string;
+				total_withdrawals: string;
+				total_chests: string;
+				computed_balance: string;
+			}
+		>
+	>({});
+
+	const transactionQueue: Record<string, Promise<void>> = {};
+
+	function handleKeydown(
+		event: KeyboardEvent,
+		profileId: string,
+		type: 'deposit' | 'withdrawal' | 'chest'
+	) {
+		if (event.key === 'Enter' && !event.isComposing && !event.shiftKey) {
+			event.preventDefault();
+			const input = event.currentTarget as HTMLInputElement;
+			const amountStr = input.value.trim();
+
+			if (!amountStr || parseFloat(amountStr) <= 0) return;
+
+			// 1. Synchronously clear the input, don't blur it
+			input.value = '';
+
+			const queueKey = `${profileId}:${type}`;
+
+			// Flash feedback immediately
+			flashProfileId = profileId;
+			flashType = type;
+			setTimeout(() => {
+				if (flashProfileId === profileId && flashType === type) {
+					flashProfileId = '';
+					flashType = '';
+				}
+			}, 600);
+
+			// 2. Optimistically update local totals
+			const current =
+				localTotals[profileId] ||
+				allCycles.flatMap((c) => c.profiles).find((p) => p.id === profileId);
+			if (current) {
+				let dep = parseMoneyToCents(current.total_deposits);
+				let wdl = parseMoneyToCents(current.total_withdrawals);
+				let chest = parseMoneyToCents(current.total_chests);
+
+				const amt = parseMoneyToCents(amountStr);
+				if (type === 'deposit') dep += amt;
+				if (type === 'withdrawal') wdl += amt;
+				if (type === 'chest') chest += amt;
+
+				const bal = wdl + chest - dep;
+
+				localTotals[profileId] = {
+					total_deposits: formatCents(dep),
+					total_withdrawals: formatCents(wdl),
+					total_chests: formatCents(chest),
+					computed_balance: formatCents(bal)
+				};
+			}
+
+			// 3. Enqueue the network request
+			const currentPromise = transactionQueue[queueKey] || Promise.resolve();
+			const nextPromise = currentPromise.then(async () => {
+				try {
+					const res = await fetch('/api/ciclos/entries', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ profileId, type, amount: amountStr })
+					});
+					const result = await res.json();
+					if (result.success && result.totals) {
+						// Reconcile with authoritative server totals
+						localTotals[profileId] = result.totals;
+					} else {
+						console.error('Entry persistence failed:', result.error);
+						// Do not steal focus, just log error for now
+					}
+				} catch (err) {
+					console.error('Failed to post entry:', err);
+				}
+			});
+			transactionQueue[queueKey] = nextPromise;
+		}
+	}
 
 	function fmtSigned(
 		raw: string | undefined,
@@ -104,53 +196,6 @@ saldo: ${saldo}`;
 			loading = false;
 		};
 	}
-
-	const handleEntrySubmit: import('@sveltejs/kit').SubmitFunction = ({
-		cancel,
-		formElement,
-		formData
-	}) => {
-		const amountInput = formElement.querySelector('input[name="amount"]') as HTMLInputElement;
-		// Rapid-submit guard: if input is empty (or just cleared), ignore.
-		if (!amountInput || !amountInput.value) {
-			cancel();
-			return;
-		}
-
-		const profileId = formData.get('profileId') as string;
-		const type = formData.get('type') as string;
-		const inputId = `entry-${profileId}-${type}`;
-
-		// Optimistically clear the input so user can type the next value immediately
-		amountInput.value = '';
-
-		return async ({ update, result }) => {
-			// update({ reset: false }) prevents SvelteKit from running form.reset()
-			// and stealing focus back to the body or form element.
-			await update({ reset: false });
-
-			if (result.type === 'success') {
-				// brief flash feedback
-				flashProfileId = profileId;
-				flashType = type;
-				setTimeout(() => {
-					if (flashProfileId === profileId && flashType === type) {
-						flashProfileId = '';
-						flashType = '';
-					}
-				}, 600);
-			}
-
-			// Restore focus after DOM reconciliation
-			await tick();
-			requestAnimationFrame(() => {
-				const inputEl = document.getElementById(inputId);
-				if (inputEl) {
-					inputEl.focus();
-				}
-			});
-		};
-	};
 
 	let updateTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};
 
@@ -305,6 +350,7 @@ saldo: ${saldo}`;
 							{#each ['mae', 'filha'] as role (role)}
 								{@const profile = cycle.profiles.find((p: CycleProfile) => p.role === role)}
 								{#if profile}
+									{@const profileData = localTotals[profile.id] || profile}
 									<div class="profile-card">
 										<!-- Profile header -->
 										<div class="profile-hdr">
@@ -380,7 +426,6 @@ saldo: ${saldo}`;
 											<span class="id-val mono">{profile.withdrawal_password}</span>
 										</div>
 
-										<!-- Financial summary -->
 										<div class="fin-summary">
 											<div
 												class="fin-row fin-dep {flashProfileId === profile.id &&
@@ -390,7 +435,7 @@ saldo: ${saldo}`;
 											>
 												<span class="fin-lbl">Depósitos</span>
 												<span class="fin-val neg"
-													>{fmtSigned(profile.total_deposits, 'deposit')}</span
+													>{fmtSigned(profileData.total_deposits, 'deposit')}</span
 												>
 											</div>
 											<div
@@ -401,7 +446,7 @@ saldo: ${saldo}`;
 											>
 												<span class="fin-lbl">Saques</span>
 												<span class="fin-val pos"
-													>{fmtSigned(profile.total_withdrawals, 'withdrawal')}</span
+													>{fmtSigned(profileData.total_withdrawals, 'withdrawal')}</span
 												>
 											</div>
 											<div
@@ -411,26 +456,21 @@ saldo: ${saldo}`;
 													: ''}"
 											>
 												<span class="fin-lbl">Baús</span>
-												<span class="fin-val pos">{fmtSigned(profile.total_chests, 'chest')}</span>
+												<span class="fin-val pos"
+													>{fmtSigned(profileData.total_chests, 'chest')}</span
+												>
 											</div>
 											<div class="fin-row fin-saldo">
 												<span class="fin-lbl-saldo">SALDO</span>
-												<span class="fin-val saldo {balanceClass(profile.computed_balance)}"
-													>{fmtSigned(profile.computed_balance, 'balance')}</span
+												<span class="fin-val saldo {balanceClass(profileData.computed_balance)}"
+													>{fmtSigned(profileData.computed_balance, 'balance')}</span
 												>
 											</div>
 										</div>
 
 										<!-- Entry inputs -->
 										<div class="entry-row">
-											<form
-												method="POST"
-												action="?/addEntry"
-												use:enhance={handleEntrySubmit}
-												class="entry-form"
-											>
-												<input type="hidden" name="profileId" value={profile.id} />
-												<input type="hidden" name="type" value="deposit" />
+											<div class="entry-form">
 												<input
 													id="entry-{profile.id}-deposit"
 													name="amount"
@@ -440,20 +480,11 @@ saldo: ${saldo}`;
 													placeholder="Dep."
 													class="entry-input dep"
 													aria-label="Adicionar depósito"
+													onkeydown={(e) => handleKeydown(e, profile.id, 'deposit')}
 												/>
-												<button type="submit" class="sr-only" tabindex="-1"
-													>Adicionar depósito</button
-												>
-											</form>
+											</div>
 
-											<form
-												method="POST"
-												action="?/addEntry"
-												use:enhance={handleEntrySubmit}
-												class="entry-form"
-											>
-												<input type="hidden" name="profileId" value={profile.id} />
-												<input type="hidden" name="type" value="withdrawal" />
+											<div class="entry-form">
 												<input
 													id="entry-{profile.id}-withdrawal"
 													name="amount"
@@ -463,18 +494,11 @@ saldo: ${saldo}`;
 													placeholder="Saque"
 													class="entry-input saq"
 													aria-label="Adicionar saque"
+													onkeydown={(e) => handleKeydown(e, profile.id, 'withdrawal')}
 												/>
-												<button type="submit" class="sr-only" tabindex="-1">Adicionar saque</button>
-											</form>
+											</div>
 
-											<form
-												method="POST"
-												action="?/addEntry"
-												use:enhance={handleEntrySubmit}
-												class="entry-form"
-											>
-												<input type="hidden" name="profileId" value={profile.id} />
-												<input type="hidden" name="type" value="chest" />
+											<div class="entry-form">
 												<input
 													id="entry-{profile.id}-chest"
 													name="amount"
@@ -484,9 +508,9 @@ saldo: ${saldo}`;
 													placeholder="Baú"
 													class="entry-input bau"
 													aria-label="Adicionar baú"
+													onkeydown={(e) => handleKeydown(e, profile.id, 'chest')}
 												/>
-												<button type="submit" class="sr-only" tabindex="-1">Adicionar baú</button>
-											</form>
+											</div>
 										</div>
 									</div>
 								{/if}

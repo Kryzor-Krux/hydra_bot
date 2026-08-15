@@ -231,3 +231,30 @@ export function addProfileEntry(profileId: string, type: string, amountStr: stri
 		amount_cents
 	});
 }
+
+export function getProfileTotals(profileId: string) {
+	const result = db
+		.prepare(
+			`
+		SELECT 
+			COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount_cents ELSE 0 END), 0) as total_deposits,
+			COALESCE(SUM(CASE WHEN type = 'withdrawal' THEN amount_cents ELSE 0 END), 0) as total_withdrawals,
+			COALESCE(SUM(CASE WHEN type = 'chest' THEN amount_cents ELSE 0 END), 0) as total_chests
+		FROM cycle_profile_entries 
+		WHERE profile_id = ?
+	`
+		)
+		.get(profileId) as { total_deposits: number; total_withdrawals: number; total_chests: number };
+
+	const depositCents = Number(result?.total_deposits || 0);
+	const withdrawalCents = Number(result?.total_withdrawals || 0);
+	const chestCents = Number(result?.total_chests || 0);
+	const balanceCents = withdrawalCents + chestCents - depositCents;
+
+	return {
+		total_deposits: formatCents(depositCents),
+		total_withdrawals: formatCents(withdrawalCents),
+		total_chests: formatCents(chestCents),
+		computed_balance: formatCents(balanceCents)
+	};
+}

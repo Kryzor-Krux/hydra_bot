@@ -48,7 +48,7 @@ test.describe('Ciclos Module', () => {
 		const maeDepositInput = page.locator('.entry-input.dep').first();
 		await maeDepositInput.fill('150');
 		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			page.waitForResponse((r) => r.url().includes('/api/ciclos/entries')),
 			maeDepositInput.press('Enter')
 		]);
 
@@ -64,7 +64,7 @@ test.describe('Ciclos Module', () => {
 		const maeSaqInput = page.locator('.entry-input.saq').first();
 		await maeSaqInput.fill('100');
 		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			page.waitForResponse((r) => r.url().includes('/api/ciclos/entries')),
 			maeSaqInput.press('Enter')
 		]);
 
@@ -75,7 +75,7 @@ test.describe('Ciclos Module', () => {
 		const maeBauInput = page.locator('.entry-input.bau').first();
 		await maeBauInput.fill('100');
 		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			page.waitForResponse((r) => r.url().includes('/api/ciclos/entries')),
 			maeBauInput.press('Enter')
 		]);
 
@@ -160,7 +160,7 @@ test.describe('Ciclos Module', () => {
 		await depositInput.fill('10');
 
 		// Fire enter twice rapidly; only one request should go through
-		const responsePromise = page.waitForResponse((r) => r.url().includes('?/addEntry'));
+		const responsePromise = page.waitForResponse((r) => r.url().includes('/api/ciclos/entries'));
 		await depositInput.press('Enter');
 		await depositInput.press('Enter');
 		await responsePromise;
@@ -171,68 +171,68 @@ test.describe('Ciclos Module', () => {
 		await expect(depVal).toHaveText(/-10\.00/);
 	});
 
-	test('Financial input keeps focus and allows continuous entry flow', async ({ page }) => {
+	test('Financial input deterministic rapid stress test', async ({ page }) => {
 		await page.goto('/ciclos');
 		await generateCycle(page);
 
-		// Deposit continuous flow
 		const depInput = page.locator('.entry-input.dep').first();
+
+		// Rapid deposit input without waiting
+		await depInput.focus();
+		await depInput.fill('10');
+		await depInput.press('Enter');
+		await depInput.fill('20');
+		await depInput.press('Enter');
+		await depInput.fill('30');
+		await depInput.press('Enter');
+		await depInput.fill('40');
+		await depInput.press('Enter');
 		await depInput.fill('50');
-		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			depInput.press('Enter')
-		]);
+		await depInput.press('Enter');
+
+		// Same input never lost focus
 		await expect(depInput).toBeFocused();
-		await expect(depInput).toHaveValue('');
 
-		await depInput.fill('50');
-		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			depInput.press('Enter')
-		]);
-		await expect(depInput).toBeFocused();
-		await expect(depInput).toHaveValue('');
-
-		await depInput.fill('50');
-		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			depInput.press('Enter')
-		]);
-
+		// Check optimistic/final totals
 		const totalDep = page.locator('.fin-val.neg').first();
 		await expect(totalDep).toHaveText(/-150\.00/);
 
-		// Withdrawal continuous flow
 		const saqInput = page.locator('.entry-input.saq').first();
-		await saqInput.fill('50');
-		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			saqInput.press('Enter')
-		]);
+		await saqInput.focus();
+		await saqInput.fill('10');
+		await saqInput.press('Enter');
+		await saqInput.fill('20');
+		await saqInput.press('Enter');
+		await saqInput.fill('30');
+		await saqInput.press('Enter');
+
 		await expect(saqInput).toBeFocused();
-		await expect(saqInput).toHaveValue('');
-
-		await saqInput.fill('50');
-		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			saqInput.press('Enter')
-		]);
 		const totalSaq = page.locator('.fin-val.pos').first();
-		await expect(totalSaq).toHaveText(/\+100\.00/);
+		await expect(totalSaq).toHaveText(/\+60\.00/);
 
-		// Chest flow
 		const bauInput = page.locator('.entry-input.bau').first();
-		await bauInput.fill('50');
-		await Promise.all([
-			page.waitForResponse((r) => r.url().includes('?/addEntry')),
-			bauInput.press('Enter')
-		]);
-		await expect(bauInput).toBeFocused();
-		const totalBau = page.locator('.fin-val.pos').nth(1);
-		await expect(totalBau).toHaveText(/\+50\.00/);
+		await bauInput.focus();
+		await bauInput.fill('5');
+		await bauInput.press('Enter');
+		await bauInput.fill('10');
+		await bauInput.press('Enter');
 
-		// Verify final saldo: 100 + 50 - 150 = 0.00
+		await expect(bauInput).toBeFocused();
+		const totalBau = page.locator('.fin-val.pos').nth(1); // baus is the second pos span
+		await expect(totalBau).toHaveText(/\+15\.00/);
+
 		const finalSaldo = page.locator('.fin-val.saldo').first();
-		await expect(finalSaldo).toHaveText(/0\.00/);
+		await expect(finalSaldo).toHaveText(/-75\.00/);
+
+		// Wait for all fetches to settle (Playwright network idle is an easy way here, or explicitly wait for 10 responses)
+		await page.waitForLoadState('networkidle');
+
+		// Reload to verify authoritative totals
+		await page.reload();
+
+		await expect(page.locator('.fin-val.neg').first()).toHaveText(/-150\.00/);
+		await expect(page.locator('.fin-val.pos').first()).toHaveText(/\+60\.00/);
+		await expect(page.locator('.fin-val.pos').nth(1)).toHaveText(/\+15\.00/);
+		await expect(page.locator('.fin-val.saldo').first()).toHaveText(/-75\.00/);
 	});
 });

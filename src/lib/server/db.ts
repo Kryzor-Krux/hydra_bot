@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { env } from '$env/dynamic/private';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'node:crypto';
 
 const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
 const dbPath = isTest ? ':memory:' : env.DATABASE_PATH || './data/ciclos.db';
@@ -46,7 +47,63 @@ export function initDb() {
 			updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(cycle_id, role)
 		);
+		
+		CREATE TABLE IF NOT EXISTS cycle_profile_entries (
+			id TEXT PRIMARY KEY,
+			profile_id TEXT NOT NULL REFERENCES cycle_profiles(id) ON DELETE CASCADE,
+			type TEXT NOT NULL CHECK(type IN ('deposit', 'withdrawal', 'chest')),
+			amount REAL NOT NULL,
+			created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
 	`);
+
+	// Migration: parse old text fields and migrate to entries
+	// Only run if we find rows with the old fields not empty
+	try {
+		const oldProfiles = db.prepare(`
+			SELECT id, deposits, withdrawals, chests 
+			FROM cycle_profiles 
+			WHERE deposits != '' OR withdrawals != '' OR chests != ''
+		`).all() as { id: string, deposits: string, withdrawals: string, chests: string }[];
+
+		if (oldProfiles.length > 0) {
+			const insertEntry = db.prepare(`
+				INSERT INTO cycle_profile_entries (id, profile_id, type, amount) 
+				VALUES (@id, @profile_id, @type, @amount)
+			`);
+			
+			const clearOldFields = db.prepare(`
+				UPDATE cycle_profiles 
+				SET deposits = '', withdrawals = '', chests = '', balance = '', final_balance = ''
+				WHERE id = @id
+			`);
+
+			db.transaction(() => {
+				for (const p of oldProfiles) {
+					// Parse basic numbers from string (assuming it was something like "100" or "50, 50")
+					const createEntries = (str: string, type: string) => {
+						const nums = str.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+						for (const n of nums) {
+							insertEntry.run({
+								id: crypto.randomUUID(),
+								profile_id: p.id,
+								type: type,
+								amount: n
+							});
+						}
+					};
+
+					createEntries(p.deposits, 'deposit');
+					createEntries(p.withdrawals, 'withdrawal');
+					createEntries(p.chests, 'chest');
+
+					clearOldFields.run({ id: p.id });
+				}
+			})();
+		}
+	} catch (e) {
+		console.error("Migration error:", e);
+	}
 }
 
 initDb();

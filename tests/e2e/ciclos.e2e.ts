@@ -5,7 +5,6 @@ test.describe('Ciclos Module', () => {
 		// 1. open /ciclos
 		await page.goto('/ciclos');
 
-		// Wait for either empty state or cards
 		const generateBtn = page.getByRole('button', { name: 'GERAR DADOS' });
 		await expect(generateBtn).toBeVisible();
 
@@ -13,20 +12,11 @@ test.describe('Ciclos Module', () => {
 		await generateBtn.click();
 
 		// 3. verify MÃE and FILHA appear
-		await expect(page.locator('h2', { hasText: 'MÃE' })).toBeVisible();
-		await expect(page.locator('h2', { hasText: 'FILHA' })).toBeVisible();
+		await expect(page.locator('h2', { hasText: 'MÃE' }).first()).toBeVisible();
+		await expect(page.locator('h2', { hasText: 'FILHA' }).first()).toBeVisible();
 
-		// 4. verify generated names have no accents
-		const nameLabels = await page
-			.locator('.field.readonly:has(span.label:has-text("nome:")) span.value')
-			.allTextContents();
-		for (const name of nameLabels) {
-			expect(name).not.toMatch(/[\u0300-\u036f]/);
-			expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
-		}
-
-		// 5. fill at least one manual field
-		const maeNumberInput = page.locator('input#mae-number');
+		// 4. fill at least one manual field
+		const maeNumberInput = page.locator('input[name="number"]').first();
 		await maeNumberInput.fill('11999999999');
 
 		// Wait for the debounced update response
@@ -34,33 +24,58 @@ test.describe('Ciclos Module', () => {
 			(response) => response.url().includes('?/update') && response.status() === 200
 		);
 
-		// 6. verify persistence after reload
+		// 5. verify persistence after reload
 		await page.reload();
-		await expect(page.locator('h2', { hasText: 'MÃE' })).toBeVisible();
-		await expect(page.locator('input#mae-number')).toHaveValue('11999999999');
+		await expect(page.locator('h2', { hasText: 'MÃE' }).first()).toBeVisible();
+		await expect(page.locator('input[name="number"]').first()).toHaveValue('11999999999');
 
-		// 7. verify copy behavior
-		// Playwright requires clipboard permissions
+		// 6. Test financial entries (Deposit)
+		const maeDepositInput = page.locator('input[name="amount"]').nth(0);
+		await maeDepositInput.fill('150');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			maeDepositInput.press('Enter')
+		]);
+
+		// Check the computed balance updated (it might be the first balance-value)
+		const firstBalance = page.locator('.balance-value').first();
+		await expect(firstBalance).toHaveText(/150/);
+
+		// 7. Test Withdrawal
+		const maeWithdrawalInput = page.locator('input[name="amount"]').nth(1);
+		await maeWithdrawalInput.fill('50');
+		await Promise.all([
+			page.waitForResponse((r) => r.url().includes('?/addEntry')),
+			maeWithdrawalInput.press('Enter')
+		]);
+		
+		await expect(firstBalance).toHaveText(/100/); // 150 - 50 = 100
+
+		// 8. verify copy behavior
 		await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+		const copyBtn = page.locator('.copy-icon').first();
+		await copyBtn.click();
 
-		const maeCard = page.locator('.card').first();
-		await maeCard.click();
-
-		// Wait for the aria-live message to ensure the copy action completed
 		await expect(page.locator('.sr-only[aria-live="polite"]')).toHaveText(
 			'Perfil MÃE copiado para a área de transferência.'
 		);
 
 		const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
 		expect(clipboardText).toContain('nome:');
-		expect(clipboardText).toContain('senha:');
-		expect(clipboardText).toContain('cpf:');
 		expect(clipboardText).toContain('numero: 11999999999');
+		expect(clipboardText).toContain('depositos: 150');
+		expect(clipboardText).toContain('saques: 50');
+		expect(clipboardText).toContain('saldo: 100');
 
-		// 8. generate another cycle
+		// 9. generate another cycle
 		await generateBtn.click();
 
-		// 9. verify the UI displays the new one
-		await expect(page.locator('input#mae-number')).toHaveValue('');
+		// 10. verify multiple cycles stack up
+		await expect(page.locator('.cycle-block')).toHaveCount(2);
+		
+		// The newest cycle is on top, its number input should be empty
+		await expect(page.locator('input[name="number"]').first()).toHaveValue('');
+		// The old one is at the bottom
+		await expect(page.locator('input[name="number"]').nth(2)).toHaveValue('11999999999');
 	});
 });

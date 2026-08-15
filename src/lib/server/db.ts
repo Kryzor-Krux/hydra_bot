@@ -50,10 +50,9 @@ export function initDb() {
 		);
 	`);
 
-	// We check if cycle_profile_entries exists.
 	const tableExists = db
-		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='cycle_profile_entries'")
-		.get();
+		.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='cycle_profile_entries'")
+		.get() as { sql: string } | undefined;
 
 	if (!tableExists) {
 		db.exec(`
@@ -67,14 +66,21 @@ export function initDb() {
 			CREATE INDEX IF NOT EXISTS idx_cycle_profile_entries_profile_id ON cycle_profile_entries(profile_id);
 		`);
 	} else {
-		// Ensure we are on the canonical schema if the table already existed
-		const pragma = db.prepare('PRAGMA table_info(cycle_profile_entries)').all() as any[];
-		const amountCol = pragma.find((c) => c.name === 'amount');
-		const amountCentsCol = pragma.find((c) => c.name === 'amount_cents');
+		// Ensure we are exactly on the canonical schema
+		const sql = tableExists.sql;
+		const isCanonical =
+			sql.includes('amount_cents > 0') &&
+			sql.includes('amount_cents <= 100000000') &&
+			sql.includes('ON DELETE CASCADE');
 
-		if (amountCol && !amountCentsCol) {
+		if (!isCanonical) {
+			const pragma = db.prepare('PRAGMA table_info(cycle_profile_entries)').all() as {
+				name: string;
+			}[];
+			const hasAmountCol = pragma.some((c) => c.name === 'amount');
+			const hasAmountCentsCol = pragma.some((c) => c.name === 'amount_cents');
+
 			db.transaction(() => {
-				// Migrate REAL amount to canonical integer amount_cents table
 				db.exec(`
 					CREATE TABLE cycle_profile_entries_new (
 						id TEXT PRIMARY KEY,
@@ -83,16 +89,31 @@ export function initDb() {
 						amount_cents INTEGER NOT NULL CHECK(amount_cents > 0 AND amount_cents <= 100000000),
 						created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 					);
-					INSERT INTO cycle_profile_entries_new (id, profile_id, type, amount_cents, created_at)
-					SELECT id, profile_id, type, CAST(ROUND(amount * 100) AS INTEGER), created_at
-					FROM cycle_profile_entries;
+				`);
+
+				if (hasAmountCentsCol) {
+					// Migrate from early v2 without checks
+					db.exec(`
+						INSERT INTO cycle_profile_entries_new (id, profile_id, type, amount_cents, created_at)
+						SELECT id, profile_id, type, amount_cents, created_at
+						FROM cycle_profile_entries;
+					`);
+				} else if (hasAmountCol) {
+					// Migrate from early v2 with REAL amount
+					db.exec(`
+						INSERT INTO cycle_profile_entries_new (id, profile_id, type, amount_cents, created_at)
+						SELECT id, profile_id, type, CAST(ROUND(amount * 100) AS INTEGER), created_at
+						FROM cycle_profile_entries;
+					`);
+				}
+
+				db.exec(`
 					DROP TABLE cycle_profile_entries;
 					ALTER TABLE cycle_profile_entries_new RENAME TO cycle_profile_entries;
 					CREATE INDEX IF NOT EXISTS idx_cycle_profile_entries_profile_id ON cycle_profile_entries(profile_id);
 				`);
 			})();
 		} else {
-			// Ensure index exists even if already migrated
 			db.exec(
 				'CREATE INDEX IF NOT EXISTS idx_cycle_profile_entries_profile_id ON cycle_profile_entries(profile_id);'
 			);

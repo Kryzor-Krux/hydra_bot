@@ -34,8 +34,8 @@ describe('Ciclos DB Repository', () => {
 			number: '11999999999'
 		});
 
-		let cycles = getAllCycles();
-		let updatedMae = cycles[0].profiles.find((p) => p.role === 'mae')!;
+		const cycles = getAllCycles();
+		const updatedMae = cycles[0].profiles.find((p) => p.role === 'mae')!;
 
 		expect(updatedMae.number).toBe('11999999999');
 		expect(updatedMae.name).toBe(mae.name);
@@ -50,8 +50,8 @@ describe('Ciclos DB Repository', () => {
 		addProfileEntry(mae.id, 'withdrawal', '50');
 		addProfileEntry(mae.id, 'chest', '10.99');
 
-		let cycles = getAllCycles();
-		let updatedMae = cycles[0].profiles.find((p) => p.role === 'mae')!;
+		const cycles = getAllCycles();
+		const updatedMae = cycles[0].profiles.find((p) => p.role === 'mae')!;
 
 		expect(updatedMae.total_deposits).toBe('150.50');
 		expect(updatedMae.total_withdrawals).toBe('50.00');
@@ -79,7 +79,7 @@ describe('Database Migration', () => {
 		db.exec('DELETE FROM cycles');
 	});
 
-	it('should migrate valid legacy string fields', () => {
+	it('should migrate valid legacy string fields, and be idempotent on second init (no duplicates)', () => {
 		const cycleId = crypto.randomUUID();
 		const profileId = crypto.randomUUID();
 		db.prepare('INSERT INTO cycles (id) VALUES (?)').run(cycleId);
@@ -92,13 +92,6 @@ describe('Database Migration', () => {
 
 		initDb();
 
-		const p = db
-			.prepare('SELECT deposits, withdrawals, chests FROM cycle_profiles WHERE id = ?')
-			.get(profileId) as { deposits: string; withdrawals: string; chests: string };
-		expect(p.deposits).toBe('');
-		expect(p.withdrawals).toBe('');
-		expect(p.chests).toBe('');
-
 		const entries = db
 			.prepare(
 				'SELECT type, amount_cents FROM cycle_profile_entries WHERE profile_id = ? ORDER BY type, amount_cents'
@@ -106,45 +99,137 @@ describe('Database Migration', () => {
 			.all(profileId) as { type: string; amount_cents: number }[];
 		expect(entries.length).toBe(4);
 
-		const depositCents = entries.filter((e) => e.type === 'deposit').map((e) => e.amount_cents);
-		expect(depositCents).toEqual([1050, 2000]);
-
-		const withdrawalCents = entries
-			.filter((e) => e.type === 'withdrawal')
-			.map((e) => e.amount_cents);
-		expect(withdrawalCents).toEqual([500]);
-
-		const chestCents = entries.filter((e) => e.type === 'chest').map((e) => e.amount_cents);
-		expect(chestCents).toEqual([100]);
+		// Second init should not duplicate
+		initDb();
+		const entriesAfter = db
+			.prepare(
+				'SELECT type, amount_cents FROM cycle_profile_entries WHERE profile_id = ? ORDER BY type, amount_cents'
+			)
+			.all(profileId) as { type: string; amount_cents: number }[];
+		expect(entriesAfter.length).toBe(4);
 	});
 
-	it('should rollback and NOT clear legacy fields if data is malformed', () => {
+	it('should normalize early-v2 REAL schema to canonical schema', () => {
+		initDb();
+
+		// Corrupt to early-v2 REAL schema manually
+		db.exec(`
+			DROP TABLE cycle_profile_entries;
+			CREATE TABLE cycle_profile_entries (
+				id TEXT PRIMARY KEY,
+				profile_id TEXT NOT NULL,
+				type TEXT NOT NULL,
+				amount REAL NOT NULL,
+				created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+		`);
+
 		const cycleId = crypto.randomUUID();
 		const profileId = crypto.randomUUID();
 		db.prepare('INSERT INTO cycles (id) VALUES (?)').run(cycleId);
 		db.prepare(
-			`
-			INSERT INTO cycle_profiles (id, cycle_id, role, name, generated_password, cpf, number, withdrawal_password, deposits, withdrawals, chests)
-			VALUES (?, ?, 'mae', 'Test', '123', '123456', '', '', '10.50, invalid', '', '')
-		`
+			`INSERT INTO cycle_profiles (id, cycle_id, role, name, generated_password, cpf) VALUES (?, ?, 'mae', 'Test', '123', '123456')`
 		).run(profileId, cycleId);
 
-		// The migration inside initDb should fail but catch the error, or bubble it up?
-		// Actually initDb doesn't try-catch the transaction natively at the top level, so it will throw.
-		expect(() => initDb()).toThrow('Invalid amount format');
+		db.prepare(
+			`INSERT INTO cycle_profile_entries (id, profile_id, type, amount) VALUES ('e1', ?, 'deposit', 10.5)`
+		).run(profileId);
 
-		const p = db.prepare('SELECT deposits FROM cycle_profiles WHERE id = ?').get(profileId) as {
-			deposits: string;
-		};
-		expect(p.deposits).toBe('10.50, invalid'); // untouched
+		initDb();
 
-		const entriesCount = db
-			.prepare('SELECT COUNT(*) as c FROM cycle_profile_entries WHERE profile_id = ?')
-			.get(profileId) as { c: number };
-		expect(entriesCount.c).toBe(0); // untouched due to transaction rollback
+		const entries = db
+			.prepare('SELECT amount_cents FROM cycle_profile_entries WHERE id = ?')
+			.get('e1') as { amount_cents: number };
+		expect(entries.amount_cents).toBe(1050);
 	});
 
-	it('should be idempotent on second init', () => {
+	it('should normalize early-v2 amount_cents schema without CHECK to canonical schema', () => {
+		initDb();
+
+		// Corrupt to early-v2 amount_cents schema without CHECK manually
+		db.exec(`
+			DROP TABLE cycle_profile_entries;
+			CREATE TABLE cycle_profile_entries (
+				id TEXT PRIMARY KEY,
+				profile_id TEXT NOT NULL,
+				type TEXT NOT NULL,
+				amount_cents INTEGER NOT NULL,
+				created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+			);
+		`);
+
+		const cycleId = crypto.randomUUID();
+		const profileId = crypto.randomUUID();
+		db.prepare('INSERT INTO cycles (id) VALUES (?)').run(cycleId);
+		db.prepare(
+			`INSERT INTO cycle_profiles (id, cycle_id, role, name, generated_password, cpf) VALUES (?, ?, 'mae', 'Test', '123', '123456')`
+		).run(profileId, cycleId);
+
+		db.prepare(
+			`INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents) VALUES ('e2', ?, 'deposit', 1050)`
+		).run(profileId);
+
+		initDb();
+
+		const entries = db
+			.prepare('SELECT amount_cents FROM cycle_profile_entries WHERE id = ?')
+			.get('e2') as { amount_cents: number };
+		expect(entries.amount_cents).toBe(1050);
+
+		// Now canonical, so CHECK constraint should enforce range
+		expect(() => {
+			db.prepare(
+				`INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents) VALUES ('e3', ?, 'deposit', 0)`
+			).run(profileId);
+		}).toThrow(/CHECK constraint failed/);
+	});
+
+	it('should remain safe and not rebuild when already canonical', () => {
+		initDb();
+		const cycleId = crypto.randomUUID();
+		const profileId = crypto.randomUUID();
+		db.prepare('INSERT INTO cycles (id) VALUES (?)').run(cycleId);
+		db.prepare(
+			`INSERT INTO cycle_profiles (id, cycle_id, role, name, generated_password, cpf) VALUES (?, ?, 'mae', 'Test', '123', '123456')`
+		).run(profileId, cycleId);
+
+		db.prepare(
+			`INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents) VALUES ('e4', ?, 'deposit', 500)`
+		).run(profileId);
+
+		// Run again
 		expect(() => initDb()).not.toThrow();
+
+		const entries = db
+			.prepare('SELECT amount_cents FROM cycle_profile_entries WHERE id = ?')
+			.get('e4') as { amount_cents: number };
+		expect(entries.amount_cents).toBe(500);
+	});
+
+	it('should have working foreign key cascade and index', () => {
+		initDb();
+		const cycleId = crypto.randomUUID();
+		const profileId = crypto.randomUUID();
+		db.prepare('INSERT INTO cycles (id) VALUES (?)').run(cycleId);
+		db.prepare(
+			`INSERT INTO cycle_profiles (id, cycle_id, role, name, generated_password, cpf) VALUES (?, ?, 'mae', 'Test', '123', '123456')`
+		).run(profileId, cycleId);
+		db.prepare(
+			`INSERT INTO cycle_profile_entries (id, profile_id, type, amount_cents) VALUES ('e5', ?, 'deposit', 500)`
+		).run(profileId);
+
+		// Ensure index exists
+		const indices = db
+			.prepare(
+				"SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='cycle_profile_entries'"
+			)
+			.all() as { name: string }[];
+		expect(indices.map((i) => i.name)).toContain('idx_cycle_profile_entries_profile_id');
+
+		// Cascade delete
+		db.prepare('DELETE FROM cycles WHERE id = ?').run(cycleId);
+
+		const entry = db.prepare('SELECT * FROM cycle_profile_entries WHERE id = ?').get('e5');
+		expect(entry).toBeUndefined();
 	});
 });

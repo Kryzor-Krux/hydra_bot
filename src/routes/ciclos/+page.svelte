@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { PageData, ActionData } from './$types';
-	import type { Cycle, CycleProfile, CycleProfileEntry } from '$lib/modules/ciclos/domain/types';
+	import type { Cycle, CycleProfile } from '$lib/modules/ciclos/domain/types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let loading = $state(false);

@@ -8,7 +8,8 @@ import {
 } from '$lib/modules/ciclos/server/repository';
 
 export const load: PageServerLoad = async ({ url }) => {
-	const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+	const parsedPage = parseInt(url.searchParams.get('page') || '1', 10);
+	const page = isNaN(parsedPage) ? 1 : Math.max(1, parsedPage);
 	const limit = 10; // Keep the interface simple with a smaller limit like 10
 	const offset = (page - 1) * limit;
 	const cycles = getAllCycles(limit + 1, offset);

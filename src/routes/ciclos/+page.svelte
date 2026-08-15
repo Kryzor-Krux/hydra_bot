@@ -110,34 +110,45 @@ saldo: ${saldo}`;
 		formElement,
 		formData
 	}) => {
-		if (formElement.dataset.submitting === 'true') {
+		const amountInput = formElement.querySelector('input[name="amount"]') as HTMLInputElement;
+		// Rapid-submit guard: if input is empty (or just cleared), ignore.
+		if (!amountInput || !amountInput.value) {
 			cancel();
 			return;
 		}
-		formElement.dataset.submitting = 'true';
+
 		const profileId = formData.get('profileId') as string;
 		const type = formData.get('type') as string;
 		const inputId = `entry-${profileId}-${type}`;
 
-		return async ({ update }) => {
-			try {
-				await update({ reset: true });
+		// Optimistically clear the input so user can type the next value immediately
+		amountInput.value = '';
+
+		return async ({ update, result }) => {
+			// update({ reset: false }) prevents SvelteKit from running form.reset()
+			// and stealing focus back to the body or form element.
+			await update({ reset: false });
+
+			if (result.type === 'success') {
 				// brief flash feedback
 				flashProfileId = profileId;
 				flashType = type;
 				setTimeout(() => {
-					flashProfileId = '';
-					flashType = '';
+					if (flashProfileId === profileId && flashType === type) {
+						flashProfileId = '';
+						flashType = '';
+					}
 				}, 600);
+			}
 
-				await tick();
+			// Restore focus after DOM reconciliation
+			await tick();
+			requestAnimationFrame(() => {
 				const inputEl = document.getElementById(inputId);
 				if (inputEl) {
 					inputEl.focus();
 				}
-			} finally {
-				formElement.dataset.submitting = 'false';
-			}
+			});
 		};
 	};
 

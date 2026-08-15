@@ -4,14 +4,17 @@ import type { Cycle, CycleProfile, ProfileUpdatePayload } from '../domain/types'
 import { generateName, generatePassword, generateCPF } from '../domain/generator';
 
 export function getLatestCycle(): Cycle | null {
-	const cycleRow = db.prepare('SELECT * FROM cycles ORDER BY rowid DESC LIMIT 1').get() as { id: string, created_at: string, updated_at: string } | undefined;
-	
+	const cycleRow = db.prepare('SELECT * FROM cycles ORDER BY rowid DESC LIMIT 1').get() as
+		{ id: string; created_at: string; updated_at: string } | undefined;
+
 	if (!cycleRow) return null;
-	
-	const profiles = db.prepare('SELECT * FROM cycle_profiles WHERE cycle_id = ? ORDER BY role DESC').all(cycleRow.id) as CycleProfile[];
+
+	const profiles = db
+		.prepare('SELECT * FROM cycle_profiles WHERE cycle_id = ? ORDER BY role DESC')
+		.all(cycleRow.id) as CycleProfile[];
 	// role DESC means 'mae' then 'filha' usually, but let's just make sure it works as expected.
 	// better yet, we sort them manually or return as is.
-	
+
 	return {
 		...cycleRow,
 		profiles
@@ -20,7 +23,7 @@ export function getLatestCycle(): Cycle | null {
 
 export function createCycle(): Cycle {
 	const cycleId = crypto.randomUUID();
-	
+
 	const mae: CycleProfile = {
 		id: crypto.randomUUID(),
 		cycle_id: cycleId,
@@ -54,7 +57,7 @@ export function createCycle(): Cycle {
 	};
 
 	const insertCycle = db.prepare('INSERT INTO cycles (id) VALUES (?)');
-	
+
 	const insertProfile = db.prepare(`
 		INSERT INTO cycle_profiles (
 			id, cycle_id, role, name, generated_password, cpf,
@@ -81,8 +84,8 @@ export function createCycle(): Cycle {
 		try {
 			transaction();
 			success = true;
-		} catch (error: any) {
-			if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+		} catch (error: unknown) {
+			if (error && typeof error === 'object' && 'code' in error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
 				// Regenerate CPFs
 				mae.cpf = generateCPF();
 				filha.cpf = generateCPF();
@@ -103,18 +106,26 @@ export function createCycle(): Cycle {
 	};
 }
 
-export function updateProfile(profileId: string, payload: ProfileUpdatePayload): void {
+export function updateProfile(profileId: string, payload: Partial<ProfileUpdatePayload>): void {
+	const fields = [];
+	const values: Record<string, unknown> = { id: profileId };
+
+	const allowedKeys = ['number', 'deposits', 'withdrawals', 'balance', 'chests', 'final_balance'];
+	for (const [key, value] of Object.entries(payload)) {
+		if (allowedKeys.includes(key) && value !== undefined) {
+			fields.push(`${key} = @${key}`);
+			values[key] = value;
+		}
+	}
+
+	if (fields.length === 0) return;
+
 	const stmt = db.prepare(`
 		UPDATE cycle_profiles 
-		SET number = @number,
-		    deposits = @deposits,
-		    withdrawals = @withdrawals,
-		    balance = @balance,
-		    chests = @chests,
-		    final_balance = @final_balance,
+		SET ${fields.join(', ')},
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = @id
 	`);
 
-	stmt.run({ ...payload, id: profileId });
+	stmt.run(values);
 }

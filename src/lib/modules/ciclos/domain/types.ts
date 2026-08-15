@@ -23,4 +23,7 @@ export interface Cycle {
 	profiles: CycleProfile[];
 }
 
-export type ProfileUpdatePayload = Pick<CycleProfile, 'number' | 'deposits' | 'withdrawals' | 'balance' | 'chests' | 'final_balance'>;
+export type ProfileUpdatePayload = Pick<
+	CycleProfile,
+	'number' | 'deposits' | 'withdrawals' | 'balance' | 'chests' | 'final_balance'
+>;

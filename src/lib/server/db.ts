@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 
 const isTest = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
-const dbPath = isTest ? ':memory:' : (env.DATABASE_PATH || './data/ciclos.db');
+const dbPath = isTest ? ':memory:' : env.DATABASE_PATH || './data/ciclos.db';
 
 if (!isTest) {
 	// Ensure directory exists

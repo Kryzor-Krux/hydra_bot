@@ -1,248 +1,449 @@
-warning: in the working copy of '.env.example', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'AGENTS.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'GEMINI.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
-warning: in the working copy of 'docs/setup.md', LF will be replaced by CRLF the next time Git touches it
-[1mdiff --git a/.env.example b/.env.example[m
-[1mindex e676772..0fee870 100644[m
-[1m--- a/.env.example[m
-[1m+++ b/.env.example[m
-[36m@@ -1,6 +1,3 @@[m
- # Copie para .env e preencha localmente. NUNCA commitar o .env real.[m
+warning: in the working copy of 'src/routes/ciclos/+page.svelte', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/src/routes/ciclos/+page.svelte b/src/routes/ciclos/+page.svelte[m
+[1mindex 3cd24c2..67a626d 100644[m
+[1m--- a/src/routes/ciclos/+page.svelte[m
+[1m+++ b/src/routes/ciclos/+page.svelte[m
+[36m@@ -1,17 +1,19 @@[m
+ <script lang="ts">[m
+ 	import { enhance } from '$app/forms';[m
+[31m-	import type { PageData } from './$types';[m
+[32m+[m	[32mimport type { PageData, ActionData } from './$types';[m
+[32m+[m	[32mimport type { CycleProfile } from '$lib/modules/ciclos/domain/types';[m
  [m
-[31m-# Exemplo:[m
-[31m-# DATABASE_URL=[m
-[31m-# API_KEY=[m
-[31m-# SECRET_KEY=[m
-[32m+[m[32mDATABASE_PATH=./data/ciclos.db[m
-[1mdiff --git a/.gitignore b/.gitignore[m
-[1mindex 7a0bf01..6685898 100644[m
-[1m--- a/.gitignore[m
-[1m+++ b/.gitignore[m
-[36m@@ -1,32 +1,31 @@[m
-[31m-# Ambiente e segredos[m
-[31m-.env[m
-[31m-.env.*[m
-[31m-!.env.example[m
-[32m+[m[32mnode_modules[m
- [m
-[31m-# Dependências[m
-[31m-node_modules/[m
-[31m-venv/[m
-[31m-.venv/[m
-[31m-__pycache__/[m
-[31m-*.pyc[m
-[32m+[m[32m# Output[m
-[32m+[m[32m.output[m
-[32m+[m[32m.vercel[m
-[32m+[m[32m.netlify[m
-[32m+[m[32m.wrangler[m
-[32m+[m[32m/.svelte-kit[m
-[32m+[m[32m/build[m
- [m
-[31m-# Build[m
-[31m-dist/[m
-[31m-build/[m
-[31m-*.egg-info/[m
-[32m+[m[32m# OS[m
-[32m+[m[32m.DS_Store[m
-[32m+[m[32mThumbs.db[m
- [m
-[31m-# IDE[m
-[31m-.vscode/[m
-[31m-.idea/[m
-[32m+[m[32m# Env[m
-[32m+[m[32m.env[m
-[32m+[m[32m.env.*[m
-[32m+[m[32m!.env.example[m
-[32m+[m[32m!.env.test[m
- [m
-[31m-# Logs e relatórios de scan[m
-[31m-*.log[m
-[31m-semgrep.sarif[m
-[31m-gitleaks-report.json[m
-[32m+[m[32m# Vite[m
-[32m+[m[32mvite.config.js.timestamp-*[m
-[32m+[m[32mvite.config.ts.timestamp-*[m
-[32m+[m[32m# Playwright[m
-[32m+[m[32mtest-results[m
- [m
-[31m-# Docs geradas[m
-[31m-site/[m
-[32m+[m[32mdata/*.db[m
-[32m+[m[32mdata/*.db-journal[m
-[32m+[m[32mdata/*.db-wal[m
-[32m+[m[32mdata/*.db-shm[m
- [m
-[31m-# OS[m
-[31m-.DS_Store[m
-[31m-Thumbs.db[m
-[1mdiff --git a/AGENTS.md b/AGENTS.md[m
-[1mindex fe7f638..e555c1c 100644[m
-[1m--- a/AGENTS.md[m
-[1m+++ b/AGENTS.md[m
-[36m@@ -5,16 +5,15 @@[m [mvenha a ler este arquivo) trabalhando neste repositório. Mantenha este arquivo[m
- abaixo de 150 linhas — ele é carregado inteiro no contexto do agente a cada tarefa.[m
- [m
- ## Visão geral do projeto[m
-[31m-<!-- Preencha: uma frase sobre o que este projeto faz. -->[m
-[32m+[m[32mO projeto HYDRA é uma ferramenta focada na geração e gerenciamento de ciclos de perfis de teste.[m
- [m
- ## Comandos[m
-[31m-- Instalar deps: `<preencher>`[m
-[31m-- Rodar em dev: `<preencher>`[m
-[31m-- Build: `<preencher>`[m
-[31m-- Lint: `<preencher>`[m
-[31m-- Testes unitários: `pytest tests/unit -v` ou `npm test -- tests/unit`[m
-[31m-- Testes de integração: `pytest tests/integration`[m
-[31m-- Testes e2e: `npx playwright test`[m
-[32m+[m[32m- Instalar deps: `npm install`[m
-[32m+[m[32m- Rodar em dev: `npm run dev`[m
-[32m+[m[32m- Build: `npm run build`[m
-[32m+[m[32m- Lint: `npm run check && npm run lint`[m
-[32m+[m[32m- Testes unitários/integração: `npm run test:unit`[m
-[32m+[m[32m- Testes e2e: `npm run test:e2e`[m
- [m
- ## Arquitetura[m
- - `/specs`  -> especificações geradas via spec-kit (fonte da verdade do que construir)[m
-[1mdiff --git a/GEMINI.md b/GEMINI.md[m
-[1mindex f746a68..90c7871 100644[m
-[1m--- a/GEMINI.md[m
-[1m+++ b/GEMINI.md[m
-[36m@@ -1,3 +1,11 @@[m
-[32m+[m[32m## Project Configuration[m
+[31m-	let { data }: { data: PageData } = $props();[m
+[32m+[m	[32mlet { data, form }: { data: PageData; form: ActionData } = $props();[m
+ 	let loading = $state(false);[m
+[31m-	[m
 [32m+[m
-[32m+[m[32m- **Language**: TypeScript[m
-[32m+[m[32m- **Package Manager**: npm[m
-[32m+[m[32m- **Add-ons**: sveltekit-adapter, vitest, playwright, eslint, prettier[m
+ 	let copiedId = $state('');[m
+[32m+[m	[32mlet ariaLiveMessage = $state('');[m
+ [m
+ 	let cycle = $derived(data.cycle);[m
+[31m-	let mae = $derived(cycle?.profiles.find(p => p.role === 'mae'));[m
+[31m-	let filha = $derived(cycle?.profiles.find(p => p.role === 'filha'));[m
+[32m+[m	[32mlet mae = $derived(cycle?.profiles.find((p) => p.role === 'mae'));[m
+[32m+[m	[32mlet filha = $derived(cycle?.profiles.find((p) => p.role === 'filha'));[m
+ [m
+[31m-	function copyProfile(profile: any, id: string) {[m
+[32m+[m	[32mfunction copyProfile(profile: CycleProfile | undefined, id: string, label: string) {[m
+ 		if (!profile) return;[m
+ 		const text = `nome: ${profile.name}[m
+ senha: ${profile.generated_password}[m
+[36m@@ -26,8 +28,12 @@[m [msaldo final: ${profile.final_balance}`;[m
+ [m
+ 		navigator.clipboard.writeText(text).then(() => {[m
+ 			copiedId = id;[m
+[32m+[m			[32mariaLiveMessage = `Perfil ${label} copiado para a área de transferência.`;[m
+ 			setTimeout(() => {[m
+[31m-				if (copiedId === id) copiedId = '';[m
+[32m+[m				[32mif (copiedId === id) {[m
+[32m+[m					[32mcopiedId = '';[m
+[32m+[m					[32mariaLiveMessage = '';[m
+[32m+[m				[32m}[m
+ 			}, 2000);[m
+ 		});[m
+ 	}[m
+[36m@@ -42,18 +48,41 @@[m [msaldo final: ${profile.final_balance}`;[m
+ [m
+ 	let updateTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};[m
+ [m
+[31m-	function debounceUpdate(form: HTMLFormElement, profileId: string) {[m
+[32m+[m	[32mfunction debounceUpdate(formElement: HTMLFormElement, profileId: string) {[m
+ 		if (updateTimeouts[profileId]) clearTimeout(updateTimeouts[profileId]);[m
+ 		updateTimeouts[profileId] = setTimeout(() => {[m
+[31m-			form.requestSubmit();[m
+[32m+[m			[32mformElement.requestSubmit();[m
+ 		}, 500);[m
+ 	}[m
 [32m+[m
-[32m+[m[32m---[m
+[32m+[m	[32mfunction copyAction(node: HTMLElement, params: { profile: CycleProfile | undefined, id: string, label: string }) {[m
+[32m+[m		[32mlet currentParams = params;[m
 [32m+[m
- @AGENTS.md[m
- [m
- <!--[m
-[1mdiff --git a/README.md b/README.md[m
-[1mindex 74c6312..b532254 100644[m
-[1m--- a/README.md[m
-[1m+++ b/README.md[m
-[36m@@ -1,34 +1,39 @@[m
-[31m-# Repo Template[m
-[32m+[m[32m# HYDRA[m
- [m
-[31m-[![CI](https://img.shields.io/badge/CI-passing-brightgreen)]()[m
-[31m-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)[m
-[31m-[![Security: gitleaks](https://img.shields.io/badge/secrets-gitleaks-blue)]()[m
-[31m-[m
-[31m-Template padrão para novos projetos. Cobre: organização (spec-driven), padrão[m
-[31m-de commits/branches/tasks, segurança automatizada (SAST/SCA/secrets), testes,[m
-[31m-documentação e instruções para agentes de IA (Antigravity/Gemini).[m
-[32m+[m[32mFerramenta de testes focada na geração e gerenciamento de ciclos de perfis.[m
- [m
- ## Como usar[m
-[31m-1. "Use this template" no GitHub para criar um repositório novo a partir deste.[m
-[31m-2. Preencha as seções `<preencher>` em `AGENTS.md`, `docs/setup.md` e `renovate.json` / `dependabot.yml`.[m
-[31m-3. Rode `pre-commit install` (veja `docs/setup.md`) para ativar os hooks locais.[m
-[31m-4. Comece pelo spec-kit: `specify init` na raiz para gerar a primeira spec em `/specs`.[m
-[32m+[m[32m1. Crie o arquivo `.env` (use `.env.example` como base).[m
-[32m+[m[32m2. Instale dependências: `npm install`.[m
-[32m+[m[32m3. Rode em desenvolvimento: `npm run dev`.[m
- [m
- ## Estrutura[m
- ```[m
-[31m-.agents/      skills e subagentes do Antigravity[m
-[31m-specs/        especificações (spec-kit)[m
-[31m-plans/        planos derivados das specs[m
-[31m-tasks/        tasks rastreáveis (TASK-001.md...)[m
-[31m-src/          código-fonte[m
-[31m-tests/        unit / integration / e2e[m
-[31m-docs/         documentação viva[m
-[32m+[m[32msrc/          código-fonte SvelteKit + SQLite (better-sqlite3)[m
-[32m+[m[32mtests/        unit / integration / e2e (Vitest + Playwright)[m
-[32m+[m[32mdocs/         documentação do projeto[m
-[32m+[m[32mdata/         banco de dados SQLite local[m
-[32m+[m[32m```[m
+[32m+[m		[32mconst handleClick = (e: MouseEvent) => {[m
+[32m+[m			[32mconst target = e.target as HTMLElement;[m
+[32m+[m			[32mif (['INPUT', 'LABEL', 'BUTTON'].includes(target.tagName)) return;[m
+[32m+[m			[32mcopyProfile(currentParams.profile, currentParams.id, currentParams.label);[m
+[32m+[m		[32m};[m
 [32m+[m
-[32m+[m[32m## Developing[m
+[32m+[m		[32mnode.addEventListener('click', handleClick);[m
 [32m+[m
-[32m+[m[32mOnce you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:[m
+[32m+[m		[32mreturn {[m
+[32m+[m			[32mupdate(newParams: { profile: CycleProfile | undefined, id: string, label: string }) {[m
+[32m+[m				[32mcurrentParams = newParams;[m
+[32m+[m			[32m},[m
+[32m+[m			[32mdestroy() {[m
+[32m+[m				[32mnode.removeEventListener('click', handleClick);[m
+[32m+[m			[32m}[m
+[32m+[m		[32m};[m
+[32m+[m	[32m}[m
+ </script>[m
+ [m
+ <svelte:head>[m
+ 	<title>HYDRA - CICLOS</title>[m
+ </svelte:head>[m
+ [m
+[32m+[m[32m<div class="sr-only" aria-live="polite">{ariaLiveMessage}</div>[m
 [32m+[m
-[32m+[m[32m```sh[m
-[32m+[m[32mnpm run dev[m
+ <div class="app-container">[m
+ 	<header>[m
+ 		<h1>HYDRA</h1>[m
+[36m@@ -69,6 +98,12 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 			</form>[m
+ 		</div>[m
+ [m
+[32m+[m		[32m{#if form?.error}[m
+[32m+[m			[32m<div class="error-banner">[m
+[32m+[m				[32m{form.error}[m
+[32m+[m			[32m</div>[m
+[32m+[m		[32m{/if}[m
 [32m+[m
-[32m+[m[32m# or start the server and open the app in a new browser tab[m
-[32m+[m[32mnpm run dev -- --open[m
-[32m+[m[32m```[m
+ 		{#if !cycle}[m
+ 			<div class="empty-state">[m
+ 				<p>Nenhum ciclo encontrado. Clique em "GERAR DADOS" para começar.</p>[m
+[36m@@ -76,16 +111,30 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 		{:else if mae && filha}[m
+ 			<div class="cards-container">[m
+ 				<!-- MÃE CARD -->[m
+[31m-				<!-- svelte-ignore a11y-click-events-have-key-events -->[m
+[31m-				<!-- svelte-ignore a11y-no-static-element-interactions -->[m
+[31m-				<div class="card" on:click={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') copyProfile(mae, mae.id); }}>[m
+[32m+[m				[32m<form[m
+[32m+[m					[32mclass="card"[m
+[32m+[m					[32mmethod="POST"[m
+[32m+[m					[32maction="?/update"[m
+[32m+[m					[32muse:enhance[m
+[32m+[m					[32moninput={(e) => debounceUpdate(e.currentTarget, mae!.id)}[m
+[32m+[m					[32muse:copyAction={{ profile: mae, id: mae.id, label: 'MÃE' }}[m
+[32m+[m				[32m>[m
+[32m+[m					[32m<input type="hidden" name="profileId" value={mae.id} />[m
+ 					<div class="card-header">[m
+ 						<h2>MÃE</h2>[m
+[31m-						<button class="copy-icon" aria-label="Copiar" on:click|stopPropagation={() => copyProfile(mae, mae!.id)}>[m
+[32m+[m						[32m<button[m
+[32m+[m							[32mtype="button"[m
+[32m+[m							[32mclass="copy-icon"[m
+[32m+[m							[32maria-label="Copiar perfil MÃE"[m
+[32m+[m							[32monclick={(e) => {[m
+[32m+[m								[32me.stopPropagation();[m
+[32m+[m								[32mcopyProfile(mae, mae!.id, 'MÃE');[m
+[32m+[m							[32m}}[m
+[32m+[m						[32m>[m
+ 							{copiedId === mae.id ? 'Copiado' : '📋'}[m
+ 						</button>[m
+ 					</div>[m
+[31m-					[m
 [32m+[m
-[32m+[m[32m## Building[m
+ 					<div class="field readonly">[m
+ 						<span class="label">nome:</span>[m
+ 						<span class="value">{mae.name}</span>[m
+[36m@@ -98,56 +147,88 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 						<span class="label">cpf:</span>[m
+ 						<span class="value font-mono">{mae.cpf}</span>[m
+ 					</div>[m
+[31m-					[m
+[31m-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, mae!.id)}>[m
+[31m-						<input type="hidden" name="profileId" value={mae.id} />[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="mae-number" class="label">numero:</label>[m
+[31m-							<input id="mae-number" name="number" type="text" bind:value={mae.number} />[m
+[31m-						</div>[m
+[31m-					</form>[m
 [32m+[m
-[32m+[m[32mTo create a production version of your app:[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="mae-number" class="label">numero:</label>[m
+[32m+[m						[32m<input id="mae-number" name="number" type="text" maxlength="255" value={mae.number} />[m
+[32m+[m					[32m</div>[m
+ [m
+ 					<div class="field readonly">[m
+ 						<span class="label">senha saque:</span>[m
+ 						<span class="value font-mono">{mae.withdrawal_password}</span>[m
+ 					</div>[m
+[31m-					[m
+[31m-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, mae!.id)}>[m
+[31m-						<input type="hidden" name="profileId" value={mae.id} />[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="mae-deposits" class="label">depositos:</label>[m
+[31m-							<input id="mae-deposits" name="deposits" type="text" bind:value={mae.deposits} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="mae-withdrawals" class="label">saques:</label>[m
+[31m-							<input id="mae-withdrawals" name="withdrawals" type="text" bind:value={mae.withdrawals} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="mae-balance" class="label">saldo:</label>[m
+[31m-							<input id="mae-balance" name="balance" type="text" bind:value={mae.balance} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="mae-chests" class="label">baus:</label>[m
+[31m-							<input id="mae-chests" name="chests" type="text" bind:value={mae.chests} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="mae-final" class="label">saldo final:</label>[m
+[31m-							<input id="mae-final" name="final_balance" type="text" bind:value={mae.final_balance} />[m
+[31m-						</div>[m
+[31m-					</form>[m
+[31m-				</div>[m
 [32m+[m
-[32m+[m[32m```sh[m
-[32m+[m[32mnpm run build[m
- ```[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="mae-deposits" class="label">depositos:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="mae-deposits"[m
+[32m+[m							[32mname="deposits"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={mae.deposits}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="mae-withdrawals" class="label">saques:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="mae-withdrawals"[m
+[32m+[m							[32mname="withdrawals"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={mae.withdrawals}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="mae-balance" class="label">saldo:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="mae-balance"[m
+[32m+[m							[32mname="balance"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={mae.balance}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="mae-chests" class="label">baus:</label>[m
+[32m+[m						[32m<input id="mae-chests" name="chests" type="text" maxlength="255" value={mae.chests} />[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="mae-final" class="label">saldo final:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="mae-final"[m
+[32m+[m							[32mname="final_balance"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={mae.final_balance}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m				[32m</form>[m
  [m
-[31m-## Stack de ferramentas[m
-[31m-Veja `docs/architecture.md` (ferramentas de organização/agentes) e[m
-[31m-`docs/security.md` (ferramentas de segurança) para a lista completa e o[m
-[31m-motivo de cada escolha.[m
-[32m+[m[32mYou can preview the production build with `npm run preview`.[m
- [m
-[31m-## Licença[m
-[31m-MIT — veja [LICENSE](LICENSE).[m
-[32m+[m[32m> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.[m
-[1mdiff --git a/docs/setup.md b/docs/setup.md[m
-[1mindex 323d452..f0538a9 100644[m
-[1m--- a/docs/setup.md[m
-[1m+++ b/docs/setup.md[m
-[36m@@ -1,39 +1,36 @@[m
- # Setup[m
- [m
- ## Requisitos[m
-[31m-- `<preencher: runtime da stack, ex. Node 22 / Python 3.12>`[m
-[32m+[m[32m- Node LTS (ex. Node 22)[m
- - `pre-commit` (`pip install pre-commit`)[m
- - `git`[m
- [m
- ## Passo a passo[m
- ```bash[m
-[31m-git clone <preencher: url-do-repo>[m
-[31m-cd <preencher: nome-do-projeto>[m
-[32m+[m[32mgit clone <url-do-repo>[m
-[32m+[m[32mcd hydra_bot[m
- [m
- # instalar dependências[m
-[31m-<preencher>[m
-[32m+[m[32mnpm install[m
- [m
- # ativar hooks locais de segurança e commit[m
- pre-commit install[m
- pre-commit install --hook-type commit-msg[m
- [m
- # rodar em desenvolvimento[m
-[31m-<preencher>[m
-[32m+[m[32mnpm run dev[m
- ```[m
- [m
-[32m+[m[32m## Banco de Dados[m
-[32m+[m[32mO projeto utiliza um banco de dados SQLite local.[m
-[32m+[m[32mCopie `.env.example` para `.env` e ajuste se necessário (o padrão `DATABASE_PATH=./data/ciclos.db` é suficiente).[m
-[32m+[m[32mAo rodar `npm run dev` as tabelas serão criadas automaticamente.[m
+ 				<!-- FILHA CARD -->[m
+[31m-				<!-- svelte-ignore a11y-click-events-have-key-events -->[m
+[31m-				<!-- svelte-ignore a11y-no-static-element-interactions -->[m
+[31m-				<div class="card" on:click={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') copyProfile(filha, filha.id); }}>[m
+[32m+[m				[32m<form[m
+[32m+[m					[32mclass="card"[m
+[32m+[m					[32mmethod="POST"[m
+[32m+[m					[32maction="?/update"[m
+[32m+[m					[32muse:enhance[m
+[32m+[m					[32moninput={(e) => debounceUpdate(e.currentTarget, filha!.id)}[m
+[32m+[m					[32muse:copyAction={{ profile: filha, id: filha.id, label: 'FILHA' }}[m
+[32m+[m				[32m>[m
+[32m+[m					[32m<input type="hidden" name="profileId" value={filha.id} />[m
+ 					<div class="card-header">[m
+ 						<h2>FILHA</h2>[m
+[31m-						<button class="copy-icon" aria-label="Copiar" on:click|stopPropagation={() => copyProfile(filha, filha!.id)}>[m
+[32m+[m						[32m<button[m
+[32m+[m							[32mtype="button"[m
+[32m+[m							[32mclass="copy-icon"[m
+[32m+[m							[32maria-label="Copiar perfil FILHA"[m
+[32m+[m							[32monclick={(e) => {[m
+[32m+[m								[32me.stopPropagation();[m
+[32m+[m								[32mcopyProfile(filha, filha!.id, 'FILHA');[m
+[32m+[m							[32m}}[m
+[32m+[m						[32m>[m
+ 							{copiedId === filha.id ? 'Copiado' : '📋'}[m
+ 						</button>[m
+ 					</div>[m
+[31m-					[m
 [32m+[m
- ## Escolha entre Dependabot e Renovate[m
- O repo vem com os dois configurados (`.github/dependabot.yml` e `renovate.json`).[m
- Escolha um e remova o outro para evitar PRs duplicados.[m
+ 					<div class="field readonly">[m
+ 						<span class="label">nome:</span>[m
+ 						<span class="value">{filha.name}</span>[m
+[36m@@ -160,44 +241,74 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 						<span class="label">cpf:</span>[m
+ 						<span class="value font-mono">{filha.cpf}</span>[m
+ 					</div>[m
+[31m-					[m
+[31m-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, filha!.id)}>[m
+[31m-						<input type="hidden" name="profileId" value={filha.id} />[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="filha-number" class="label">numero:</label>[m
+[31m-							<input id="filha-number" name="number" type="text" bind:value={filha.number} />[m
+[31m-						</div>[m
+[31m-					</form>[m
+[32m+[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="filha-number" class="label">numero:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="filha-number"[m
+[32m+[m							[32mname="number"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={filha.number}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
  [m
-[31m-## Documentação navegável (opcional)[m
-[31m-```bash[m
-[31m-pip install mkdocs-material[m
-[31m-mkdocs serve[m
-[31m-```[m
-[31m-[m
- ## Playwright (testes e2e)[m
- ```bash[m
-[31m-npm install -D @playwright/test[m
-[31m-npx playwright install[m
-[31m-npx playwright test[m
-[32m+[m[32mnpm run test:e2e[m
- ```[m
+ 					<div class="field readonly">[m
+ 						<span class="label">senha saque:</span>[m
+ 						<span class="value font-mono">{filha.withdrawal_password}</span>[m
+ 					</div>[m
+[31m-					[m
+[31m-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, filha!.id)}>[m
+[31m-						<input type="hidden" name="profileId" value={filha.id} />[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="filha-deposits" class="label">depositos:</label>[m
+[31m-							<input id="filha-deposits" name="deposits" type="text" bind:value={filha.deposits} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="filha-withdrawals" class="label">saques:</label>[m
+[31m-							<input id="filha-withdrawals" name="withdrawals" type="text" bind:value={filha.withdrawals} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="filha-balance" class="label">saldo:</label>[m
+[31m-							<input id="filha-balance" name="balance" type="text" bind:value={filha.balance} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="filha-chests" class="label">baus:</label>[m
+[31m-							<input id="filha-chests" name="chests" type="text" bind:value={filha.chests} />[m
+[31m-						</div>[m
+[31m-						<div class="field editable">[m
+[31m-							<label for="filha-final" class="label">saldo final:</label>[m
+[31m-							<input id="filha-final" name="final_balance" type="text" bind:value={filha.final_balance} />[m
+[31m-						</div>[m
+[31m-					</form>[m
+[31m-				</div>[m
+[32m+[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="filha-deposits" class="label">depositos:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="filha-deposits"[m
+[32m+[m							[32mname="deposits"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={filha.deposits}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="filha-withdrawals" class="label">saques:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="filha-withdrawals"[m
+[32m+[m							[32mname="withdrawals"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={filha.withdrawals}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="filha-balance" class="label">saldo:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="filha-balance"[m
+[32m+[m							[32mname="balance"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={filha.balance}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="filha-chests" class="label">baus:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="filha-chests"[m
+[32m+[m							[32mname="chests"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={filha.chests}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m					[32m<div class="field editable">[m
+[32m+[m						[32m<label for="filha-final" class="label">saldo final:</label>[m
+[32m+[m						[32m<input[m
+[32m+[m							[32mid="filha-final"[m
+[32m+[m							[32mname="final_balance"[m
+[32m+[m							[32mtype="text"[m
+[32m+[m							[32mmaxlength="255"[m
+[32m+[m							[32mvalue={filha.final_balance}[m
+[32m+[m						[32m/>[m
+[32m+[m					[32m</div>[m
+[32m+[m				[32m</form>[m
+ 			</div>[m
+ 		{/if}[m
+ 	</main>[m
+[36m@@ -206,11 +317,29 @@[m [msaldo final: ${profile.final_balance}`;[m
+ <style>[m
+ 	:global(body) {[m
+ 		margin: 0;[m
+[31m-		font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;[m
+[32m+[m		[32mfont-family:[m
+[32m+[m			[32msystem-ui,[m
+[32m+[m			[32m-apple-system,[m
+[32m+[m			[32mBlinkMacSystemFont,[m
+[32m+[m			[32m'Segoe UI',[m
+[32m+[m			[32mRoboto,[m
+[32m+[m			[32msans-serif;[m
+ 		background-color: #0d0d0d;[m
+ 		color: #e0e0e0;[m
+ 	}[m
+ [m
+[32m+[m	[32m.sr-only {[m
+[32m+[m		[32mposition: absolute;[m
+[32m+[m		[32mwidth: 1px;[m
+[32m+[m		[32mheight: 1px;[m
+[32m+[m		[32mpadding: 0;[m
+[32m+[m		[32mmargin: -1px;[m
+[32m+[m		[32moverflow: hidden;[m
+[32m+[m		[32mclip: rect(0, 0, 0, 0);[m
+[32m+[m		[32mwhite-space: nowrap;[m
+[32m+[m		[32mborder-width: 0;[m
+[32m+[m	[32m}[m
+[32m+[m
+ 	.app-container {[m
+ 		max-width: 1200px;[m
+ 		margin: 0 auto;[m
+[36m@@ -256,7 +385,9 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 		font-weight: 700;[m
+ 		border-radius: 8px;[m
+ 		cursor: pointer;[m
+[31m-		transition: transform 0.1s, background-color 0.2s;[m
+[32m+[m		[32mtransition:[m
+[32m+[m			[32mtransform 0.1s,[m
+[32m+[m			[32mbackground-color 0.2s;[m
+ 	}[m
+ [m
+ 	.generate-btn:hover:not(:disabled) {[m
+[36m@@ -269,6 +400,15 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 		cursor: not-allowed;[m
+ 	}[m
+ [m
+[32m+[m	[32m.error-banner {[m
+[32m+[m		[32mbackground-color: #ef4444;[m
+[32m+[m		[32mcolor: white;[m
+[32m+[m		[32mpadding: 1rem;[m
+[32m+[m		[32mborder-radius: 8px;[m
+[32m+[m		[32mmargin-bottom: 2rem;[m
+[32m+[m		[32mtext-align: center;[m
+[32m+[m	[32m}[m
+[32m+[m
+ 	.empty-state {[m
+ 		text-align: center;[m
+ 		color: #666;[m
+[36m@@ -291,6 +431,7 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 	}[m
+ [m
+ 	.card {[m
+[32m+[m		[32mdisplay: block;[m
+ 		background-color: #1a1a1a;[m
+ 		border: 1px solid #333;[m
+ 		border-radius: 12px;[m
+[36m@@ -371,9 +512,4 @@[m [msaldo final: ${profile.final_balance}`;[m
+ 	.editable input:focus {[m
+ 		border-bottom: 1px solid #10b981;[m
+ 	}[m
+[31m-	[m
+[31m-	form {[m
+[31m-		margin: 0;[m
+[31m-		padding: 0;[m
+[31m-	}[m
+ </style>[m

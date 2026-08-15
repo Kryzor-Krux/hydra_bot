@@ -7,7 +7,7 @@ describe('Ciclos Domain Generator', () => {
 			const name = generateName();
 			expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
 			// Assert no accents
-			expect(name.normalize("NFD")).toEqual(name);
+			expect(name.normalize('NFD')).toEqual(name);
 			expect(name).not.toMatch(/[\u0300-\u036f]/);
 		}
 	});

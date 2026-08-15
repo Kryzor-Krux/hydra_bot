@@ -14,13 +14,13 @@ jobs:
 
       # Ajuste o setup abaixo para a stack real do projeto (Node, Python, etc.)
       - name: Setup runtime
-        run: echo "TODO: configurar setup-node / setup-python conforme a stack"
+        run: echo "TODO - configurar setup-node / setup-python conforme a stack"
 
       - name: Lint
-        run: echo "TODO: rodar linter do projeto"
+        run: echo "TODO - rodar linter do projeto"
 
       - name: Unit tests
-        run: echo "TODO: rodar tests/unit"
+        run: echo "TODO - rodar tests/unit"
 
       - name: Integration tests
-        run: echo "TODO: rodar tests/integration"
+        run: echo "TODO - rodar tests/integration"

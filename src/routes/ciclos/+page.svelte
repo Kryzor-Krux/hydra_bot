@@ -1,17 +1,19 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import type { PageData } from './$types';
+	import type { PageData, ActionData } from './$types';
+	import type { CycleProfile } from '$lib/modules/ciclos/domain/types';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let loading = $state(false);
-	
+
 	let copiedId = $state('');
+	let ariaLiveMessage = $state('');
 
 	let cycle = $derived(data.cycle);
-	let mae = $derived(cycle?.profiles.find(p => p.role === 'mae'));
-	let filha = $derived(cycle?.profiles.find(p => p.role === 'filha'));
+	let mae = $derived(cycle?.profiles.find((p) => p.role === 'mae'));
+	let filha = $derived(cycle?.profiles.find((p) => p.role === 'filha'));
 
-	function copyProfile(profile: any, id: string) {
+	function copyProfile(profile: CycleProfile | undefined, id: string, label: string) {
 		if (!profile) return;
 		const text = `nome: ${profile.name}
 senha: ${profile.generated_password}
@@ -26,8 +28,12 @@ saldo final: ${profile.final_balance}`;
 
 		navigator.clipboard.writeText(text).then(() => {
 			copiedId = id;
+			ariaLiveMessage = `Perfil ${label} copiado para a área de transferência.`;
 			setTimeout(() => {
-				if (copiedId === id) copiedId = '';
+				if (copiedId === id) {
+					copiedId = '';
+					ariaLiveMessage = '';
+				}
 			}, 2000);
 		});
 	}
@@ -42,17 +48,40 @@ saldo final: ${profile.final_balance}`;
 
 	let updateTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};
 
-	function debounceUpdate(form: HTMLFormElement, profileId: string) {
+	function debounceUpdate(formElement: HTMLFormElement, profileId: string) {
 		if (updateTimeouts[profileId]) clearTimeout(updateTimeouts[profileId]);
 		updateTimeouts[profileId] = setTimeout(() => {
-			form.requestSubmit();
+			formElement.requestSubmit();
 		}, 500);
+	}
+
+	function copyAction(node: HTMLElement, params: { profile: CycleProfile | undefined, id: string, label: string }) {
+		let currentParams = params;
+
+		const handleClick = (e: MouseEvent) => {
+			const target = e.target as HTMLElement;
+			if (['INPUT', 'LABEL', 'BUTTON'].includes(target.tagName)) return;
+			copyProfile(currentParams.profile, currentParams.id, currentParams.label);
+		};
+
+		node.addEventListener('click', handleClick);
+
+		return {
+			update(newParams: { profile: CycleProfile | undefined, id: string, label: string }) {
+				currentParams = newParams;
+			},
+			destroy() {
+				node.removeEventListener('click', handleClick);
+			}
+		};
 	}
 </script>
 
 <svelte:head>
 	<title>HYDRA - CICLOS</title>
 </svelte:head>
+
+<div class="sr-only" aria-live="polite">{ariaLiveMessage}</div>
 
 <div class="app-container">
 	<header>
@@ -69,6 +98,12 @@ saldo final: ${profile.final_balance}`;
 			</form>
 		</div>
 
+		{#if form?.error}
+			<div class="error-banner">
+				{form.error}
+			</div>
+		{/if}
+
 		{#if !cycle}
 			<div class="empty-state">
 				<p>Nenhum ciclo encontrado. Clique em "GERAR DADOS" para começar.</p>
@@ -76,16 +111,30 @@ saldo final: ${profile.final_balance}`;
 		{:else if mae && filha}
 			<div class="cards-container">
 				<!-- MÃE CARD -->
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<div class="card" on:click={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') copyProfile(mae, mae.id); }}>
+				<form
+					class="card"
+					method="POST"
+					action="?/update"
+					use:enhance
+					oninput={(e) => debounceUpdate(e.currentTarget, mae!.id)}
+					use:copyAction={{ profile: mae, id: mae.id, label: 'MÃE' }}
+				>
+					<input type="hidden" name="profileId" value={mae.id} />
 					<div class="card-header">
 						<h2>MÃE</h2>
-						<button class="copy-icon" aria-label="Copiar" on:click|stopPropagation={() => copyProfile(mae, mae!.id)}>
+						<button
+							type="button"
+							class="copy-icon"
+							aria-label="Copiar perfil MÃE"
+							onclick={(e) => {
+								e.stopPropagation();
+								copyProfile(mae, mae!.id, 'MÃE');
+							}}
+						>
 							{copiedId === mae.id ? 'Copiado' : '📋'}
 						</button>
 					</div>
-					
+
 					<div class="field readonly">
 						<span class="label">nome:</span>
 						<span class="value">{mae.name}</span>
@@ -98,56 +147,88 @@ saldo final: ${profile.final_balance}`;
 						<span class="label">cpf:</span>
 						<span class="value font-mono">{mae.cpf}</span>
 					</div>
-					
-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, mae!.id)}>
-						<input type="hidden" name="profileId" value={mae.id} />
-						<div class="field editable">
-							<label for="mae-number" class="label">numero:</label>
-							<input id="mae-number" name="number" type="text" bind:value={mae.number} />
-						</div>
-					</form>
+
+					<div class="field editable">
+						<label for="mae-number" class="label">numero:</label>
+						<input id="mae-number" name="number" type="text" maxlength="255" value={mae.number} />
+					</div>
 
 					<div class="field readonly">
 						<span class="label">senha saque:</span>
 						<span class="value font-mono">{mae.withdrawal_password}</span>
 					</div>
-					
-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, mae!.id)}>
-						<input type="hidden" name="profileId" value={mae.id} />
-						<div class="field editable">
-							<label for="mae-deposits" class="label">depositos:</label>
-							<input id="mae-deposits" name="deposits" type="text" bind:value={mae.deposits} />
-						</div>
-						<div class="field editable">
-							<label for="mae-withdrawals" class="label">saques:</label>
-							<input id="mae-withdrawals" name="withdrawals" type="text" bind:value={mae.withdrawals} />
-						</div>
-						<div class="field editable">
-							<label for="mae-balance" class="label">saldo:</label>
-							<input id="mae-balance" name="balance" type="text" bind:value={mae.balance} />
-						</div>
-						<div class="field editable">
-							<label for="mae-chests" class="label">baus:</label>
-							<input id="mae-chests" name="chests" type="text" bind:value={mae.chests} />
-						</div>
-						<div class="field editable">
-							<label for="mae-final" class="label">saldo final:</label>
-							<input id="mae-final" name="final_balance" type="text" bind:value={mae.final_balance} />
-						</div>
-					</form>
-				</div>
+
+					<div class="field editable">
+						<label for="mae-deposits" class="label">depositos:</label>
+						<input
+							id="mae-deposits"
+							name="deposits"
+							type="text"
+							maxlength="255"
+							value={mae.deposits}
+						/>
+					</div>
+					<div class="field editable">
+						<label for="mae-withdrawals" class="label">saques:</label>
+						<input
+							id="mae-withdrawals"
+							name="withdrawals"
+							type="text"
+							maxlength="255"
+							value={mae.withdrawals}
+						/>
+					</div>
+					<div class="field editable">
+						<label for="mae-balance" class="label">saldo:</label>
+						<input
+							id="mae-balance"
+							name="balance"
+							type="text"
+							maxlength="255"
+							value={mae.balance}
+						/>
+					</div>
+					<div class="field editable">
+						<label for="mae-chests" class="label">baus:</label>
+						<input id="mae-chests" name="chests" type="text" maxlength="255" value={mae.chests} />
+					</div>
+					<div class="field editable">
+						<label for="mae-final" class="label">saldo final:</label>
+						<input
+							id="mae-final"
+							name="final_balance"
+							type="text"
+							maxlength="255"
+							value={mae.final_balance}
+						/>
+					</div>
+				</form>
 
 				<!-- FILHA CARD -->
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<div class="card" on:click={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') copyProfile(filha, filha.id); }}>
+				<form
+					class="card"
+					method="POST"
+					action="?/update"
+					use:enhance
+					oninput={(e) => debounceUpdate(e.currentTarget, filha!.id)}
+					use:copyAction={{ profile: filha, id: filha.id, label: 'FILHA' }}
+				>
+					<input type="hidden" name="profileId" value={filha.id} />
 					<div class="card-header">
 						<h2>FILHA</h2>
-						<button class="copy-icon" aria-label="Copiar" on:click|stopPropagation={() => copyProfile(filha, filha!.id)}>
+						<button
+							type="button"
+							class="copy-icon"
+							aria-label="Copiar perfil FILHA"
+							onclick={(e) => {
+								e.stopPropagation();
+								copyProfile(filha, filha!.id, 'FILHA');
+							}}
+						>
 							{copiedId === filha.id ? 'Copiado' : '📋'}
 						</button>
 					</div>
-					
+
 					<div class="field readonly">
 						<span class="label">nome:</span>
 						<span class="value">{filha.name}</span>
@@ -160,44 +241,74 @@ saldo final: ${profile.final_balance}`;
 						<span class="label">cpf:</span>
 						<span class="value font-mono">{filha.cpf}</span>
 					</div>
-					
-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, filha!.id)}>
-						<input type="hidden" name="profileId" value={filha.id} />
-						<div class="field editable">
-							<label for="filha-number" class="label">numero:</label>
-							<input id="filha-number" name="number" type="text" bind:value={filha.number} />
-						</div>
-					</form>
+
+					<div class="field editable">
+						<label for="filha-number" class="label">numero:</label>
+						<input
+							id="filha-number"
+							name="number"
+							type="text"
+							maxlength="255"
+							value={filha.number}
+						/>
+					</div>
 
 					<div class="field readonly">
 						<span class="label">senha saque:</span>
 						<span class="value font-mono">{filha.withdrawal_password}</span>
 					</div>
-					
-					<form method="POST" action="?/update" use:enhance on:input={(e) => debounceUpdate(e.currentTarget, filha!.id)}>
-						<input type="hidden" name="profileId" value={filha.id} />
-						<div class="field editable">
-							<label for="filha-deposits" class="label">depositos:</label>
-							<input id="filha-deposits" name="deposits" type="text" bind:value={filha.deposits} />
-						</div>
-						<div class="field editable">
-							<label for="filha-withdrawals" class="label">saques:</label>
-							<input id="filha-withdrawals" name="withdrawals" type="text" bind:value={filha.withdrawals} />
-						</div>
-						<div class="field editable">
-							<label for="filha-balance" class="label">saldo:</label>
-							<input id="filha-balance" name="balance" type="text" bind:value={filha.balance} />
-						</div>
-						<div class="field editable">
-							<label for="filha-chests" class="label">baus:</label>
-							<input id="filha-chests" name="chests" type="text" bind:value={filha.chests} />
-						</div>
-						<div class="field editable">
-							<label for="filha-final" class="label">saldo final:</label>
-							<input id="filha-final" name="final_balance" type="text" bind:value={filha.final_balance} />
-						</div>
-					</form>
-				</div>
+
+					<div class="field editable">
+						<label for="filha-deposits" class="label">depositos:</label>
+						<input
+							id="filha-deposits"
+							name="deposits"
+							type="text"
+							maxlength="255"
+							value={filha.deposits}
+						/>
+					</div>
+					<div class="field editable">
+						<label for="filha-withdrawals" class="label">saques:</label>
+						<input
+							id="filha-withdrawals"
+							name="withdrawals"
+							type="text"
+							maxlength="255"
+							value={filha.withdrawals}
+						/>
+					</div>
+					<div class="field editable">
+						<label for="filha-balance" class="label">saldo:</label>
+						<input
+							id="filha-balance"
+							name="balance"
+							type="text"
+							maxlength="255"
+							value={filha.balance}
+						/>
+					</div>
+					<div class="field editable">
+						<label for="filha-chests" class="label">baus:</label>
+						<input
+							id="filha-chests"
+							name="chests"
+							type="text"
+							maxlength="255"
+							value={filha.chests}
+						/>
+					</div>
+					<div class="field editable">
+						<label for="filha-final" class="label">saldo final:</label>
+						<input
+							id="filha-final"
+							name="final_balance"
+							type="text"
+							maxlength="255"
+							value={filha.final_balance}
+						/>
+					</div>
+				</form>
 			</div>
 		{/if}
 	</main>
@@ -206,9 +317,27 @@ saldo final: ${profile.final_balance}`;
 <style>
 	:global(body) {
 		margin: 0;
-		font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+		font-family:
+			system-ui,
+			-apple-system,
+			BlinkMacSystemFont,
+			'Segoe UI',
+			Roboto,
+			sans-serif;
 		background-color: #0d0d0d;
 		color: #e0e0e0;
+	}
+
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border-width: 0;
 	}
 
 	.app-container {
@@ -256,7 +385,9 @@ saldo final: ${profile.final_balance}`;
 		font-weight: 700;
 		border-radius: 8px;
 		cursor: pointer;
-		transition: transform 0.1s, background-color 0.2s;
+		transition:
+			transform 0.1s,
+			background-color 0.2s;
 	}
 
 	.generate-btn:hover:not(:disabled) {
@@ -267,6 +398,15 @@ saldo final: ${profile.final_balance}`;
 	.generate-btn:disabled {
 		opacity: 0.7;
 		cursor: not-allowed;
+	}
+
+	.error-banner {
+		background-color: #ef4444;
+		color: white;
+		padding: 1rem;
+		border-radius: 8px;
+		margin-bottom: 2rem;
+		text-align: center;
 	}
 
 	.empty-state {
@@ -291,6 +431,7 @@ saldo final: ${profile.final_balance}`;
 	}
 
 	.card {
+		display: block;
 		background-color: #1a1a1a;
 		border: 1px solid #333;
 		border-radius: 12px;
@@ -370,10 +511,5 @@ saldo final: ${profile.final_balance}`;
 
 	.editable input:focus {
 		border-bottom: 1px solid #10b981;
-	}
-	
-	form {
-		margin: 0;
-		padding: 0;
 	}
 </style>

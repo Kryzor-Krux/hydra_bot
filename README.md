@@ -3,11 +3,13 @@
 Ferramenta de testes focada na geração e gerenciamento de ciclos de perfis.
 
 ## Como usar
+
 1. Crie o arquivo `.env` (use `.env.example` como base).
 2. Instale dependências: `npm install`.
 3. Rode em desenvolvimento: `npm run dev`.
 
 ## Estrutura
+
 ```
 src/          código-fonte SvelteKit + SQLite (better-sqlite3)
 tests/        unit / integration / e2e (Vitest + Playwright)

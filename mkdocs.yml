@@ -1,4 +1,4 @@
-site_name: "<preencher: Nome do Projeto>"
+site_name: '<preencher: Nome do Projeto>'
 theme:
   name: material
   palette:

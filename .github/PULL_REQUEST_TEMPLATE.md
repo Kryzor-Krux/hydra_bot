@@ -1,9 +1,11 @@
 ## Task relacionada
+
 Refs: TASK-
 
 ## O que mudou
 
 ## Checklist
+
 - [ ] Commit(s) seguem Conventional Commits e referenciam a task
 - [ ] Testes unitários passando (`tests/unit`)
 - [ ] Testes de integração passando, se aplicável (`tests/integration`)

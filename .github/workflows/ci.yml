@@ -7,20 +7,35 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-test:
+  validate:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      # Ajuste o setup abaixo para a stack real do projeto (Node, Python, etc.)
-      - name: Setup runtime
-        run: echo "TODO: configurar setup-node / setup-python conforme a stack"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check
+        run: npm run check
 
       - name: Lint
-        run: echo "TODO: rodar linter do projeto"
+        run: npm run lint
 
-      - name: Unit tests
-        run: echo "TODO: rodar tests/unit"
+      - name: Unit and integration tests
+        run: npm run test:unit -- --run
 
-      - name: Integration tests
-        run: echo "TODO: rodar tests/integration"
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E
+        run: npx playwright test

@@ -1,3 +1,11 @@
+export interface CycleProfileEntry {
+	id: string;
+	profile_id: string;
+	type: 'deposit' | 'withdrawal' | 'chest';
+	amount: string;
+	created_at?: string;
+}
+
 export interface CycleProfile {
 	id: string;
 	cycle_id: string;
@@ -7,11 +15,11 @@ export interface CycleProfile {
 	cpf: string;
 	number: string;
 	withdrawal_password: string;
-	deposits: string;
-	withdrawals: string;
-	balance: string;
-	chests: string;
-	final_balance: string;
+	entries?: CycleProfileEntry[];
+	total_deposits?: string;
+	total_withdrawals?: string;
+	total_chests?: string;
+	computed_balance?: string;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -23,7 +31,4 @@ export interface Cycle {
 	profiles: CycleProfile[];
 }
 
-export type ProfileUpdatePayload = Pick<
-	CycleProfile,
-	'number' | 'deposits' | 'withdrawals' | 'balance' | 'chests' | 'final_balance'
->;
+export type ProfileUpdatePayload = Pick<CycleProfile, 'number'>;

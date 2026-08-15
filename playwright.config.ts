@@ -1,6 +1,15 @@
 import { defineConfig } from '@playwright/test';
+import path from 'path';
 
 export default defineConfig({
-	webServer: { command: 'npm run build && npm run preview', port: 4173 },
+	globalSetup: './tests/e2e/global-setup.ts',
+	globalTeardown: './tests/e2e/global-teardown.ts',
+	webServer: {
+		command: 'npm run build && npm run preview',
+		port: 4173,
+		env: {
+			DATABASE_PATH: path.resolve('./data/test-e2e.db')
+		}
+	},
 	testMatch: '**/*.e2e.{ts,js}'
 });

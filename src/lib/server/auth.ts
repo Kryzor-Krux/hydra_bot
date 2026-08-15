@@ -8,21 +8,30 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: 'pg'
 	}),
+	secret: process.env.BETTER_AUTH_SECRET || 'dev-secret-do-not-use-in-prod',
 	user: {
 		additionalFields: {
 			role: {
-				type: "string",
+				type: 'string',
 				required: true,
-				defaultValue: "user"
+				defaultValue: 'user'
 			}
 		}
 	},
 	emailAndPassword: {
-		enabled: false // We use username only
+		enabled: true // Required for programmatic user creation, but users sign in via username
 	},
-	plugins: [
-		username()
-	],
+	rateLimit: {
+		window: 60,
+		max: env.RATE_LIMIT_TEST_MODE === 'true' ? 1000 : 100,
+		customRules: {
+			'/sign-in/username': {
+				window: 60,
+				max: env.RATE_LIMIT_TEST_MODE === 'true' ? 1000 : 5 // Prevent brute force in prod
+			}
+		}
+	},
+	plugins: [username()],
 	advanced: {
 		cookiePrefix: 'hydra',
 		defaultCookieAttributes: {
@@ -30,6 +39,5 @@ export const auth = betterAuth({
 			secure: !env.VITE_DEV, // use secure true in prod
 			httpOnly: true
 		}
-	},
-	secret: env.BETTER_AUTH_SECRET
+	}
 });

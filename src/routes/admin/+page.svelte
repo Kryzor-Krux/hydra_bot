@@ -27,13 +27,6 @@
 					<label for="password">PASSWORD (min 12 chars)</label>
 					<input id="password" name="password" type="password" required minlength="12" />
 				</div>
-				<div class="input-group">
-					<label for="role">ROLE</label>
-					<select id="role" name="role">
-						<option value="user">User</option>
-						<option value="admin">Admin</option>
-					</select>
-				</div>
 				<button type="submit" class="btn primary">CREATE USER</button>
 			</form>
 		</section>
@@ -114,7 +107,7 @@
 		color: #a1a1aa;
 	}
 
-	input, select {
+	input {
 		background: rgba(255, 255, 255, 0.05);
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		color: white;
@@ -122,7 +115,7 @@
 		font-family: 'JetBrains Mono', monospace;
 	}
 
-	input:focus, select:focus {
+	input:focus {
 		border-color: #dc2626;
 		outline: none;
 	}

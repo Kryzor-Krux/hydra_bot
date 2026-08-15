@@ -10,6 +10,7 @@ export const user = pgTable('user', {
 	updatedAt: timestamp('updatedAt').notNull(),
 	// username plugin fields
 	username: text('username').unique(),
+	displayUsername: text('displayUsername'),
 	role: text('role').notNull().default('user')
 });
 

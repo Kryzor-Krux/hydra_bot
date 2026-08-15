@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
-	
+
 	let username = $state('');
 	let password = $state('');
 	let errorMsg = $state('');
@@ -10,13 +10,13 @@
 		e.preventDefault();
 		errorMsg = '';
 		loading = true;
-		
+
 		try {
 			const { error } = await authClient.signIn.username({
 				username,
 				password
 			});
-			
+
 			if (error) {
 				errorMsg = 'Invalid username or password.';
 			} else {
@@ -38,22 +38,39 @@
 	<div class="login-box">
 		<div class="brand">HYDRA</div>
 		<div class="subtitle">Access restricted.</div>
-		
+
 		<form onsubmit={handleLogin}>
 			{#if errorMsg}
 				<div class="error">{errorMsg}</div>
 			{/if}
-			
+
 			<div class="input-group">
 				<label for="username">USERNAME</label>
-				<input id="username" type="text" bind:value={username} autocomplete="username" required spellcheck="false" disabled={loading} />
+				<input
+					id="username"
+					name="username"
+					type="text"
+					bind:value={username}
+					autocomplete="username"
+					required
+					spellcheck="false"
+					disabled={loading}
+				/>
 			</div>
-			
+
 			<div class="input-group">
 				<label for="password">PASSWORD</label>
-				<input id="password" type="password" bind:value={password} autocomplete="current-password" required disabled={loading} />
+				<input
+					id="password"
+					name="password"
+					type="password"
+					bind:value={password}
+					autocomplete="current-password"
+					required
+					disabled={loading}
+				/>
 			</div>
-			
+
 			<button type="submit" disabled={loading}>
 				{loading ? 'AUTHENTICATING_' : 'LOGIN'}
 			</button>
@@ -78,7 +95,9 @@
 		padding: 2.5rem;
 		border: 1px solid rgba(220, 38, 38, 0.15);
 		background: rgba(10, 10, 10, 0.95);
-		box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(220, 38, 38, 0.05);
+		box-shadow:
+			0 0 20px rgba(0, 0, 0, 0.5),
+			inset 0 0 10px rgba(220, 38, 38, 0.05);
 	}
 
 	.brand {

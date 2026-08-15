@@ -55,7 +55,10 @@ export const actions: Actions = {
 			if (data.has(key)) {
 				const val = data.get(key) as string;
 				if (val.length > 255) {
-					return fail(400, { success: false, error: `O campo excedeu o limite máximo de 255 caracteres.` });
+					return fail(400, {
+						success: false,
+						error: `O campo excedeu o limite máximo de 255 caracteres.`
+					});
 				}
 				payload[key] = val;
 			}

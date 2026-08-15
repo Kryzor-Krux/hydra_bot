@@ -15,33 +15,30 @@ export async function bootstrapAdmin() {
 	try {
 		// Check if any user exists
 		const users = await db.select({ id: schema.user.id }).from(schema.user).limit(1);
-		
+
 		if (users.length === 0) {
-			console.log('[Bootstrap] No users found. Creating initial admin from environment variables...');
-			
-			// We can use the programmatic API
-			// Since better-auth requires a web request context for full API, we construct a mock one
-			const mockRequest = new Request('http://localhost/api/auth/sign-up/username', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					username,
-					password,
-					name: 'Administrator'
-				})
-			});
-			
-			const res = await auth.handler(mockRequest);
-			if (!res.ok) {
-				console.error('[Bootstrap] Failed to create admin account:', await res.text());
+			console.log(
+				'[Bootstrap] No users found. Creating initial admin from environment variables...'
+			);
+
+			// Use the programmatic API directly
+			try {
+				await auth.api.signUpEmail({
+					body: {
+						email: `${username}@hydra.local`,
+						username,
+						password,
+						name: 'Administrator'
+					}
+				});
+			} catch (e) {
+				console.error('[Bootstrap] Failed to create admin account.', e);
 				return;
 			}
-			
+
 			// Update role to admin
 			const { eq } = await import('drizzle-orm');
-			await db.update(schema.user)
-				.set({ role: 'admin' })
-				.where(eq(schema.user.username, username));
+			await db.update(schema.user).set({ role: 'admin' }).where(eq(schema.user.username, username));
 
 			console.log('[Bootstrap] Initial admin created successfully.');
 		}

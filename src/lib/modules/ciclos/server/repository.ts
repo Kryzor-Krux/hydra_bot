@@ -7,7 +7,8 @@ import { eq, inArray, desc, sql, and } from 'drizzle-orm';
 import * as schema from '$lib/server/schema';
 
 export async function getAllCycles(userId: string, limit = 50, offset = 0): Promise<Cycle[]> {
-	const cyclesData = await db.select()
+	const cyclesData = await db
+		.select()
 		.from(schema.cycles)
 		.where(eq(schema.cycles.userId, userId))
 		.orderBy(desc(schema.cycles.createdAt))
@@ -18,43 +19,49 @@ export async function getAllCycles(userId: string, limit = 50, offset = 0): Prom
 
 	const cycleIds = cyclesData.map((c) => c.id);
 
-	const profilesData = await db.select({
-		id: schema.cycleProfiles.id,
-		cycleId: schema.cycleProfiles.cycleId,
-		role: schema.cycleProfiles.role,
-		name: schema.cycleProfiles.name,
-		generatedPassword: schema.cycleProfiles.generatedPassword,
-		cpf: schema.cycleProfiles.cpf,
-		number: schema.cycleProfiles.number,
-		withdrawalPassword: schema.cycleProfiles.withdrawalPassword,
-		totalDeposits: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'deposit' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
-		totalWithdrawals: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'withdrawal' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
-		totalChests: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'chest' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`
-	}).from(schema.cycleProfiles)
-	  .leftJoin(schema.cycleProfileEntries, eq(schema.cycleProfiles.id, schema.cycleProfileEntries.profileId))
-	  .where(inArray(schema.cycleProfiles.cycleId, cycleIds))
-	  .groupBy(schema.cycleProfiles.id)
-	  .orderBy(desc(schema.cycleProfiles.role));
+	const profilesData = await db
+		.select({
+			id: schema.cycleProfiles.id,
+			cycleId: schema.cycleProfiles.cycleId,
+			role: schema.cycleProfiles.role,
+			name: schema.cycleProfiles.name,
+			generatedPassword: schema.cycleProfiles.generatedPassword,
+			cpf: schema.cycleProfiles.cpf,
+			number: schema.cycleProfiles.number,
+			withdrawalPassword: schema.cycleProfiles.withdrawalPassword,
+			totalDeposits: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'deposit' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+			totalWithdrawals: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'withdrawal' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+			totalChests: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'chest' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`
+		})
+		.from(schema.cycleProfiles)
+		.leftJoin(
+			schema.cycleProfileEntries,
+			eq(schema.cycleProfiles.id, schema.cycleProfileEntries.profileId)
+		)
+		.where(inArray(schema.cycleProfiles.cycleId, cycleIds))
+		.groupBy(schema.cycleProfiles.id)
+		.orderBy(desc(schema.cycleProfiles.role));
 
 	const profileIds = profilesData.map((p) => p.id);
-	let entriesData: typeof schema.cycleProfileEntries.$inferSelect[] = [];
-	
+	let entriesData: (typeof schema.cycleProfileEntries.$inferSelect)[] = [];
+
 	if (profileIds.length > 0) {
-		entriesData = await db.select()
+		entriesData = await db
+			.select()
 			.from(schema.cycleProfileEntries)
 			.where(inArray(schema.cycleProfileEntries.profileId, profileIds))
 			.orderBy(schema.cycleProfileEntries.createdAt);
 	}
 
-	const mappedProfiles = profilesData.map(p => {
+	const mappedProfiles = profilesData.map((p) => {
 		const depositCents = Number(p.totalDeposits || 0);
 		const withdrawalCents = Number(p.totalWithdrawals || 0);
 		const chestCents = Number(p.totalChests || 0);
 		const balanceCents = withdrawalCents + chestCents - depositCents;
 
 		const profileEntries = entriesData
-			.filter(e => e.profileId === p.id)
-			.map(e => ({
+			.filter((e) => e.profileId === p.id)
+			.map((e) => ({
 				id: e.id,
 				profile_id: e.profileId,
 				type: e.type,
@@ -79,11 +86,11 @@ export async function getAllCycles(userId: string, limit = 50, offset = 0): Prom
 		};
 	});
 
-	return cyclesData.map(c => ({
+	return cyclesData.map((c) => ({
 		id: c.id,
 		created_at: c.createdAt.toISOString(),
 		updated_at: c.updatedAt.toISOString(),
-		profiles: mappedProfiles.filter(p => p.cycle_id === c.id) as CycleProfile[]
+		profiles: mappedProfiles.filter((p) => p.cycle_id === c.id) as CycleProfile[]
 	}));
 }
 
@@ -91,11 +98,12 @@ async function generateUniqueName(role: string, cycleId: string): Promise<string
 	let name = generateName();
 	let attempts = 0;
 	while (attempts < 50) {
-		const existing = await db.select({ id: schema.cycleProfiles.id })
+		const existing = await db
+			.select({ id: schema.cycleProfiles.id })
 			.from(schema.cycleProfiles)
 			.where(and(eq(schema.cycleProfiles.role, role), eq(schema.cycleProfiles.name, name)))
 			.limit(1);
-			
+
 		if (existing.length === 0) return name;
 		name = generateName();
 		attempts++;
@@ -108,44 +116,47 @@ export async function createCycle(userId: string): Promise<Cycle> {
 
 	let success = false;
 	let retries = 0;
-	
+
 	let maeName = '';
 	let filhaName = '';
 	let maeCpf = '';
 	let filhaCpf = '';
-	
+
 	while (!success && retries < 5) {
 		maeName = await generateUniqueName('mae', cycleId);
 		filhaName = await generateUniqueName('filha', cycleId);
 		maeCpf = generateCPF();
 		filhaCpf = generateCPF();
-		
+
 		try {
 			await db.transaction(async (tx) => {
 				await tx.insert(schema.cycles).values({
 					id: cycleId,
 					userId: userId
 				});
-				
-				await tx.insert(schema.cycleProfiles).values([{
-					id: crypto.randomUUID(),
-					cycleId: cycleId,
-					role: 'mae',
-					name: maeName,
-					generatedPassword: generatePassword(),
-					cpf: maeCpf,
-					number: '',
-					withdrawalPassword: '101010'
-				}, {
-					id: crypto.randomUUID(),
-					cycleId: cycleId,
-					role: 'filha',
-					name: filhaName,
-					generatedPassword: generatePassword(),
-					cpf: filhaCpf,
-					number: '',
-					withdrawalPassword: '101010'
-				}]);
+
+				await tx.insert(schema.cycleProfiles).values([
+					{
+						id: crypto.randomUUID(),
+						cycleId: cycleId,
+						role: 'mae',
+						name: maeName,
+						generatedPassword: generatePassword(),
+						cpf: maeCpf,
+						number: '',
+						withdrawalPassword: '101010'
+					},
+					{
+						id: crypto.randomUUID(),
+						cycleId: cycleId,
+						role: 'filha',
+						name: filhaName,
+						generatedPassword: generatePassword(),
+						cpf: filhaCpf,
+						number: '',
+						withdrawalPassword: '101010'
+					}
+				]);
 			});
 			success = true;
 		} catch (error: any) {
@@ -160,9 +171,9 @@ export async function createCycle(userId: string): Promise<Cycle> {
 	if (!success) {
 		throw new Error('Failed to create cycle due to collision');
 	}
-	
+
 	// We just return the created object structure to match the frontend expectations
-	const emptyProfile = (role: 'mae'|'filha', name: string, cpf: string): CycleProfile => ({
+	const emptyProfile = (role: 'mae' | 'filha', name: string, cpf: string): CycleProfile => ({
 		id: crypto.randomUUID(), // Mock ID just for the return, it will be re-fetched on refresh
 		cycle_id: cycleId,
 		role,
@@ -180,28 +191,30 @@ export async function createCycle(userId: string): Promise<Cycle> {
 
 	return {
 		id: cycleId,
-		profiles: [
-			emptyProfile('mae', maeName, maeCpf),
-			emptyProfile('filha', filhaName, filhaCpf)
-		]
+		profiles: [emptyProfile('mae', maeName, maeCpf), emptyProfile('filha', filhaName, filhaCpf)]
 	} as Cycle;
 }
 
-export async function updateProfile(profileId: string, userId: string, payload: Partial<ProfileUpdatePayload>): Promise<void> {
+export async function updateProfile(
+	profileId: string,
+	userId: string,
+	payload: Partial<ProfileUpdatePayload>
+): Promise<void> {
 	// Security constraint: join back to cycles to verify ownership
-	const profileCheck = await db.select({ id: schema.cycleProfiles.id })
+	const profileCheck = await db
+		.select({ id: schema.cycleProfiles.id })
 		.from(schema.cycleProfiles)
 		.innerJoin(schema.cycles, eq(schema.cycles.id, schema.cycleProfiles.cycleId))
 		.where(and(eq(schema.cycleProfiles.id, profileId), eq(schema.cycles.userId, userId)))
 		.limit(1);
-		
+
 	if (profileCheck.length === 0) {
-		throw new Error("Unauthorized or not found");
+		throw new Error('Unauthorized or not found');
 	}
 
 	const allowedKeys = ['number'];
 	const valuesToUpdate: any = {};
-	
+
 	for (const [key, value] of Object.entries(payload)) {
 		if (allowedKeys.includes(key) && value !== undefined) {
 			valuesToUpdate[key] = value;
@@ -211,25 +224,32 @@ export async function updateProfile(profileId: string, userId: string, payload: 
 	if (Object.keys(valuesToUpdate).length === 0) return;
 	valuesToUpdate.updatedAt = new Date();
 
-	await db.update(schema.cycleProfiles)
+	await db
+		.update(schema.cycleProfiles)
 		.set(valuesToUpdate)
 		.where(eq(schema.cycleProfiles.id, profileId));
 }
 
-export async function addProfileEntry(profileId: string, userId: string, type: string, amountStr: string | number): Promise<void> {
+export async function addProfileEntry(
+	profileId: string,
+	userId: string,
+	type: string,
+	amountStr: string | number
+): Promise<void> {
 	if (!['deposit', 'withdrawal', 'chest'].includes(type)) {
 		throw new Error('Invalid entry type');
 	}
 
 	// Security constraint: verify ownership
-	const profileCheck = await db.select({ id: schema.cycleProfiles.id })
+	const profileCheck = await db
+		.select({ id: schema.cycleProfiles.id })
 		.from(schema.cycleProfiles)
 		.innerJoin(schema.cycles, eq(schema.cycles.id, schema.cycleProfiles.cycleId))
 		.where(and(eq(schema.cycleProfiles.id, profileId), eq(schema.cycles.userId, userId)))
 		.limit(1);
-		
+
 	if (profileCheck.length === 0) {
-		throw new Error("Unauthorized or not found");
+		throw new Error('Unauthorized or not found');
 	}
 
 	if (typeof amountStr !== 'string') {
@@ -252,23 +272,25 @@ export async function addProfileEntry(profileId: string, userId: string, type: s
 
 export async function getProfileTotals(profileId: string, userId: string) {
 	// Security constraint: verify ownership
-	const profileCheck = await db.select({ id: schema.cycleProfiles.id })
+	const profileCheck = await db
+		.select({ id: schema.cycleProfiles.id })
 		.from(schema.cycleProfiles)
 		.innerJoin(schema.cycles, eq(schema.cycles.id, schema.cycleProfiles.cycleId))
 		.where(and(eq(schema.cycleProfiles.id, profileId), eq(schema.cycles.userId, userId)))
 		.limit(1);
-		
+
 	if (profileCheck.length === 0) {
-		throw new Error("Unauthorized or not found");
+		throw new Error('Unauthorized or not found');
 	}
 
-	const result = await db.select({
-		totalDeposits: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'deposit' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
-		totalWithdrawals: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'withdrawal' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
-		totalChests: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'chest' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`
-	})
-	.from(schema.cycleProfileEntries)
-	.where(eq(schema.cycleProfileEntries.profileId, profileId));
+	const result = await db
+		.select({
+			totalDeposits: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'deposit' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+			totalWithdrawals: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'withdrawal' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`,
+			totalChests: sql<number>`COALESCE(SUM(CASE WHEN ${schema.cycleProfileEntries.type} = 'chest' THEN ${schema.cycleProfileEntries.amountCents} ELSE 0 END), 0)`
+		})
+		.from(schema.cycleProfileEntries)
+		.where(eq(schema.cycleProfileEntries.profileId, profileId));
 
 	const row = result[0];
 	const depositCents = Number(row?.totalDeposits || 0);

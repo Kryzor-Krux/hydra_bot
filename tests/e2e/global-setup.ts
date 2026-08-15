@@ -1,11 +1,12 @@
 import postgres from 'postgres';
-import { drizzle } from 'drizzle-orm/postgres-js';
+
 import dotenv from 'dotenv';
 import path from 'path';
+import { execSync } from 'child_process';
 
 export default async function globalSetup() {
 	dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-	
+
 	const dbUrl = process.env.DATABASE_URL;
 	if (!dbUrl) {
 		console.warn('DATABASE_URL is not set. Skipping DB reset for E2E tests.');
@@ -13,7 +14,7 @@ export default async function globalSetup() {
 	}
 
 	const sql = postgres(dbUrl, { max: 1 });
-	
+
 	try {
 		await sql`DROP SCHEMA public CASCADE`;
 		await sql`CREATE SCHEMA public`;
@@ -25,7 +26,6 @@ export default async function globalSetup() {
 	}
 
 	console.log('Pushing Drizzle schema...');
-	const { execSync } = require('child_process');
 	execSync('npx drizzle-kit push', { stdio: 'inherit' });
 	console.log('Schema pushed successfully.');
 }

@@ -196,7 +196,7 @@ test.describe('Data Isolation (BOLA/IDOR)', () => {
 		);
 		const responses = await Promise.all(reqs);
 		const tooManyReqs = responses.filter((r) => r.status() === 429);
-		
+
 		// At least some requests should hit the 429 Too Many Requests rate limit
 		expect(tooManyReqs.length).toBeGreaterThan(0);
 	});

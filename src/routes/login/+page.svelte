@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
+	import HydraBackground from '$lib/components/HydraBackground.svelte';
+	import { goto } from '$app/navigation';
 
 	let username = $state('');
 	let password = $state('');
@@ -20,7 +22,7 @@
 			if (error) {
 				errorMsg = 'Invalid username or password.';
 			} else {
-				window.location.href = '/ciclos';
+				goto('/ciclos');
 			}
 		} catch (err) {
 			errorMsg = 'Invalid username or password.';
@@ -33,6 +35,8 @@
 <svelte:head>
 	<title>HYDRA // ACCESS</title>
 </svelte:head>
+
+<HydraBackground />
 
 <div class="login-container">
 	<div class="login-box">
@@ -84,7 +88,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background-color: #020202;
+		background-color: transparent;
 		color: #e4e4e7;
 		font-family: 'Inter', sans-serif;
 	}
@@ -94,6 +98,7 @@
 		max-width: 360px;
 		padding: 2.5rem;
 		border: 1px solid rgba(220, 38, 38, 0.15);
+		border-radius: 12px;
 		background: rgba(10, 10, 10, 0.95);
 		box-shadow:
 			0 0 20px rgba(0, 0, 0, 0.5),

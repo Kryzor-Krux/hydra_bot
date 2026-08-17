@@ -53,7 +53,6 @@ test.describe('Ciclos Module', () => {
 		// System Ready should not be visible yet
 		await expect(sysReadyText).toHaveText('');
 
-
 		// Eventually it must become fully typed
 		await expect(sysReadyText).toHaveText('HYDRA // SYSTEM READY', { timeout: 10000 });
 

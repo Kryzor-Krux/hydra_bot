@@ -156,7 +156,7 @@
 					completeSequence();
 				}
 
-				if (bootState === 'booting' && !reducedMotion) {
+				if (bootState === 'booting') {
 					const kryzerProgress = Math.max(0, Math.min(1, (T - 2.52) / (3.06 - 2.52)));
 					const kryzerChars = Math.floor(kryzerProgress * FULL_KRYZER.length);
 					kryzerText = FULL_KRYZER.slice(0, kryzerChars);
@@ -164,13 +164,6 @@
 					const sysProgress = Math.max(0, Math.min(1, (T - 4.33) / (4.94 - 4.33)));
 					const sysChars = Math.floor(sysProgress * FULL_SYS_READY.length);
 					sysReadyText = FULL_SYS_READY.slice(0, sysChars);
-				} else if (bootState === 'booting' && reducedMotion) {
-					// In reduced motion, we can just show the full text immediately when its time comes,
-					// or we can just let it type. The user said:
-					// "preserve the timed information sequence: KRYZER appears at 2.52s, SYSTEM READY appears at 4.33s"
-					// We'll just show the full text instantly when its time is reached.
-					if (T >= 2.52) kryzerText = FULL_KRYZER;
-					if (T >= 4.33) sysReadyText = FULL_SYS_READY;
 				}
 			}
 			if (bootState !== 'done') {

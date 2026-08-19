@@ -19,7 +19,7 @@
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.60.0",
-		"@sveltejs/adapter-node": "^5.5.4",
+		"@sveltejs/adapter-vercel": "^6.3.4",
 		"@sveltejs/kit": "^2.63.0",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@types/node": "^24",
@@ -39,6 +39,7 @@
 		"vitest": "^4.1.8"
 	},
 	"dependencies": {
+		"@opentelemetry/api": "^1.9.1",
 		"argon2": "^0.45.1",
 		"better-auth": "^1.6.29",
 		"dotenv": "^17.4.2",

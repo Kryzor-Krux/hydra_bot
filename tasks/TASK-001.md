@@ -6,7 +6,7 @@
 - Remover componentes de template genéricos (ex. scripts Python, referências não utilizadas).
 - Definir a linguagem visual base com CSS nativo (fundo escuro, verde esmeralda, bordas simples).
 - Criar a rota principal `/ciclos`.
-- Configurar dependências estritas (`better-sqlite3`, ferramentas de teste).
+- Configurar dependências estritas (`Drizzle, postgres.js`, ferramentas de teste).
 
 ## Status
 

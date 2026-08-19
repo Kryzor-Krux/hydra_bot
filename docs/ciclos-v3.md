@@ -131,11 +131,4 @@ saldo: +50.00
 
 ## Dados de Produção
 
-O banco de dados SQLite (`data/ciclos.db`) está no `.gitignore` e **não é commitado**.
-Para resetar os dados em produção:
-
-```bash
-# Parar a aplicação e deletar os arquivos do banco
-rm data/ciclos.db data/ciclos.db-shm data/ciclos.db-wal
-# Reiniciar a aplicação (initDb() recria o schema do zero)
-```
+Os dados de produção ficam no projeto Supabase configurado em DATABASE_URL. Nunca execute resetes destrutivos contra esse banco. Para testes automatizados, use exclusivamente um projeto Supabase separado em TEST_DATABASE_URL.

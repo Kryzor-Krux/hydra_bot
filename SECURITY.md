@@ -58,4 +58,3 @@ To secure this application in production on Vercel, you **MUST** configure Verce
 ## 5. Third-Party Dependencies
 
 - All npm dependencies are periodically audited.
-- Docker bases use Alpine to minimize CVE surface area.

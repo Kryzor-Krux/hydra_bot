@@ -4,11 +4,17 @@ import { db } from './db';
 import { username } from 'better-auth/plugins';
 import { env } from '$env/dynamic/private';
 
+const betterAuthSecret = env.BETTER_AUTH_SECRET;
+
+if (!betterAuthSecret) {
+	throw new Error('BETTER_AUTH_SECRET is required for Better Auth.');
+}
+
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: 'pg'
 	}),
-	secret: process.env.BETTER_AUTH_SECRET || 'dev-secret-do-not-use-in-prod',
+	secret: betterAuthSecret,
 	user: {
 		additionalFields: {
 			role: {

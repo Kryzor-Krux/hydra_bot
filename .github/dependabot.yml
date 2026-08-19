@@ -1,6 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: 'npm' # troque para "pip", "docker" etc. conforme a stack
+  - package-ecosystem: 'npm'
     directory: '/'
     schedule:
       interval: 'weekly'

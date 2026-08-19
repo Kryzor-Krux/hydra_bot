@@ -4,17 +4,17 @@ Ferramenta de testes focada na geração e gerenciamento de ciclos de perfis.
 
 ## Como usar
 
-1. Crie o arquivo `.env` (use `.env.example` como base).
+1. Crie o arquivo `.env` (use `.env.example` como base) e configure o Supabase Postgres.
 2. Instale dependências: `npm install`.
 3. Rode em desenvolvimento: `npm run dev`.
 
 ## Estrutura
 
 ```
-src/          código-fonte SvelteKit + SQLite (better-sqlite3)
+src/          código-fonte SvelteKit + PostgreSQL (Drizzle + postgres.js)
 tests/        unit / integration / e2e (Vitest + Playwright)
 docs/         documentação do projeto
-data/         banco de dados SQLite local
+supabase/     migrações SQL geradas pelo Drizzle
 ```
 
 ## Developing

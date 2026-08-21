@@ -41,7 +41,7 @@
 	"dependencies": {
 		"@opentelemetry/api": "^1.9.1",
 		"argon2": "^0.45.1",
-		"better-auth": "^1.6.29",
+		"better-auth": "^1.7.0",
 		"dotenv": "^17.4.2",
 		"drizzle-orm": "^0.45.2",
 		"postgres": "^3.4.9"
